@@ -16,8 +16,22 @@ export interface ComponenteMenu {
   productos: Producto[];
 }
 
+export interface RecetaAgrupada {
+  id: string;
+  tipo_zona: string;
+  nombre_servicio: string;
+  codigo: string;
+  nombre_receta: string;
+  orden: number;
+}
+
 interface ProductosResponse {
   data: ComponenteMenu[] | null;
+  error: any;
+}
+
+interface RecetasResponse {
+  data: RecetaAgrupada[] | null;
   error: any;
 }
 
@@ -187,6 +201,28 @@ export class ProductosService {
       return { data: componentes, error: null };
     } catch (error) {
       console.error('Error al obtener productos por unidades:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * Obtiene recetas agrupadas por tipo de zona y nombre de servicio
+   */
+  static async getRecetasAgrupadas(): Promise<RecetasResponse> {
+    try {
+      console.log('🔍 Cargando recetas agrupadas...');
+      
+      const { data, error } = await supabase.rpc('get_recetas_agrupadas');
+
+      if (error) {
+        console.error('Error obteniendo recetas agrupadas:', error);
+        return { data: null, error };
+      }
+
+      console.log('📊 Recetas agrupadas obtenidas:', data);
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error al obtener recetas agrupadas:', error);
       return { data: null, error };
     }
   }

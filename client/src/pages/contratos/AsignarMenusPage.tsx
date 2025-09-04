@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -24,13 +24,16 @@ import {
   Sparkles,
   Plus,
   Trash2,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Sunset
 } from 'lucide-react';
 import { ContratosService, ContratoView } from '../../services/contratosService';
 import { UnidadesServicioService, UnidadServicio } from '../../services/unidadesServicioService';
-import { ProductosService, ComponenteMenu, Producto } from '../../services/productosService';
+import { ProductosService, ComponenteMenu, Producto, RecetaAgrupada } from '../../services/productosService';
 import { useToast } from '../../hooks/use-toast';
 import { useGlobalLoading } from '../../contexts/GlobalLoadingContext';
+import GroupedTable, { GroupedTableData } from '../../components/GroupedTable';
 
 interface SelectWithSearchProps {
   options: { id: string; nombre: string }[];
@@ -123,10 +126,28 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const filteredOptions = options.filter(option =>
     option.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Cerrar dropdown al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
 
   const toggleOption = (optionId: string) => {
     if (selectedValues.includes(optionId)) {
@@ -141,7 +162,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -268,9 +289,33 @@ const AsignarMenusPage: React.FC = () => {
   const [selectedContrato, setSelectedContrato] = useState<string>('');
   const [unidadesFiltradas, setUnidadesFiltradas] = useState<UnidadServicio[]>([]);
   const [selectedUnidades, setSelectedUnidades] = useState<string[]>([]);
-  const [componentesMenu, setComponentesMenu] = useState<ComponenteMenu[]>([]);
+  const [recetasAgrupadas, setRecetasAgrupadas] = useState<RecetaAgrupada[]>([]);
   const [menusAsignados, setMenusAsignados] = useState<Producto[]>([]);
+  const [selectedRecetas, setSelectedRecetas] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState('');
+
+  // Función para transformar recetas agrupadas a datos de tabla
+  const transformRecetasToTableData = (recetas: RecetaAgrupada[]): GroupedTableData[] => {
+    return recetas.map((receta, index) => ({
+      id: `${receta.id}-${receta.tipo_zona}-${receta.nombre_servicio}-${index}`, // ID único combinando varios campos
+      codigo: receta.codigo,
+      nombre: receta.nombre_receta,
+      tipo_zona: receta.tipo_zona, // Primer nivel de agrupación
+      nombre_servicio: receta.nombre_servicio, // Segundo nivel de agrupación
+      orden: receta.orden,
+      estado: 1,
+      // Mantener el ID original para referencia si es necesario
+      originalId: receta.id
+    }));
+  };
+
+  // Iconos para los tipos de menú
+  const menuTypeIcons = {
+    'DESAYUNO': <Sun className="w-3 h-3 text-yellow-600" />,
+    'ALMUERZO': <UtensilsCrossed className="w-3 h-3 text-orange-600" />,
+    'CENA': <Moon className="w-3 h-3 text-blue-600" />,
+    'GENERAL': <Package className="w-3 h-3 text-gray-600" />
+  };
 
   useEffect(() => {
     cargarContratos();
@@ -311,10 +356,9 @@ const AsignarMenusPage: React.FC = () => {
 
   const handleContratoChange = async (contratoValue: string) => {
     console.log('🔄 Cambiando contrato a:', contratoValue);
-    setSelectedContrato(contratoValue);
-    setSelectedUnidades([]);
-    setComponentesMenu([]);
-    setMenusAsignados([]);
+          setSelectedContrato(contratoValue);
+      setSelectedUnidades([]);
+      setMenusAsignados([]);
 
     if (contratoValue) {
       // Buscar por ID del contrato
@@ -336,46 +380,30 @@ const AsignarMenusPage: React.FC = () => {
     }
   };
 
-  const cargarComponentesMenu = async () => {
-    if (selectedUnidades.length === 0) {
-      setComponentesMenu([]);
-      return;
-    }
-    
+  const cargarRecetasAgrupadas = async () => {
     try {
-      showLoading('Cargando catálogo de productos...');
+      showLoading('Cargando catálogo de recetas...');
       
-      // Convertir los IDs de string a number para la consulta
-      const unidadIds = selectedUnidades.map(id => parseInt(id));
-      console.log('🔍 Cargando productos para unidades:', unidadIds);
+      const response = await ProductosService.getRecetasAgrupadas();
       
-      const response = await ProductosService.getProductosPorUnidades(unidadIds);
-      if (response.data) {
-        // Transformar los datos para que coincidan con la estructura esperada
-        const componentesConEstado = response.data.map(grupo => ({
-          ...grupo,
-          expandido: false,
-          tipos: [
-            {
-              id: 1,
-              nombre: 'Productos',
-              expandido: false,
-              productos: grupo.productos
-            }
-          ]
-        }));
-        setComponentesMenu(componentesConEstado);
-        console.log('✅ Productos cargados para unidades seleccionadas:', componentesConEstado);
-      } else {
-        setComponentesMenu([]);
-        console.log('⚠️ No se encontraron productos para las unidades seleccionadas');
+      if (response.error) {
+        console.error('Error cargando recetas:', response.error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las recetas",
+          variant: "destructive",
+        });
+        return;
       }
+
+      setRecetasAgrupadas(response.data || []);
+      console.log('✅ Recetas agrupadas cargadas:', response.data);
+      
     } catch (error) {
-      console.error('Error cargando componentes de menú:', error);
-      setComponentesMenu([]);
+      console.error('Error cargando recetas agrupadas:', error);
       toast({
         title: "Error",
-        description: "No se pudieron cargar los productos para las unidades seleccionadas",
+        description: "Error al cargar las recetas",
         variant: "destructive",
       });
     } finally {
@@ -383,54 +411,24 @@ const AsignarMenusPage: React.FC = () => {
     }
   };
 
-  // Cargar componentes de menú cuando se seleccionen unidades
+  // Cargar recetas agrupadas al inicio
   useEffect(() => {
-    if (selectedUnidades.length > 0) {
-      cargarComponentesMenu();
-    }
-  }, [selectedUnidades]);
+    cargarRecetasAgrupadas();
+  }, []);
 
-  const handleToggleMenuGroup = (groupId: string) => {
-    if (selectedUnidades.length === 0) {
-      toast({
-        title: "Seleccione unidades de servicio",
-        description: "Debe seleccionar al menos una unidad de servicio antes de expandir los menús",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setComponentesMenu(prev => prev.map(group =>
-      group.id === groupId
-        ? { ...group, expandido: !group.expandido }
-        : group
-    ));
-  };
-
-  const handleToggleMenuTipo = (groupId: string, tipoId: string) => {
-    if (selectedUnidades.length === 0) {
-      toast({
-        title: "Seleccione unidades de servicio",
-        description: "Debe seleccionar al menos una unidad de servicio antes de expandir los tipos de menú",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setComponentesMenu(prev => prev.map(group => {
-      if (group.id === groupId) {
-        return {
-          ...group,
-          tipos: group.tipos.map(tipo =>
-            tipo.id === tipoId
-              ? { ...tipo, expandido: !tipo.expandido }
-              : tipo
-          )
-        };
+  // Función para manejar la selección de recetas
+  const handleRecetaSelect = (receta: GroupedTableData, selected: boolean) => {
+    setSelectedRecetas(prev => {
+      const newSet = new Set(prev);
+      if (selected) {
+        newSet.add(receta.id.toString());
+      } else {
+        newSet.delete(receta.id.toString());
       }
-      return group;
-    }));
+      return newSet;
+    });
   };
+
 
   const handleToggleProducto = (producto: Producto) => {
     setMenusAsignados(prev => {
@@ -521,7 +519,7 @@ const AsignarMenusPage: React.FC = () => {
 
           {/* Contenedor principal con dos columnas */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Columna izquierda - Catálogo de Productos */}
+            {/* Columna izquierda - Catálogo de Recetas */}
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
               <div className="bg-gray-50 p-4 border-b border-gray-200">
                 <div className="flex items-center gap-3 mb-4">
@@ -530,10 +528,10 @@ const AsignarMenusPage: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">
-                      Catálogo de Productos
+                      Catálogo de Recetas
                     </h3>
                     <p className="text-gray-600 text-sm">
-                      Seleccione los productos para el menú
+                      Seleccione las recetas para el menú
                     </p>
                   </div>
                 </div>
@@ -560,79 +558,49 @@ const AsignarMenusPage: React.FC = () => {
                       Seleccione Unidades de Servicio
                     </h4>
                     <p className="text-sm text-gray-500 max-w-xs mx-auto">
-                      Para ver el catálogo de productos disponibles, primero seleccione al menos una unidad de servicio
+                      No hay recetas disponibles en el sistema
                     </p>
                   </div>
-                ) : componentesMenu.length === 0 ? (
+                ) : recetasAgrupadas.length === 0 ? (
                   <div className="p-8 text-center">
                     <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
                       <Package className="w-8 h-8 text-blue-500 animate-pulse" />
                     </div>
                     <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                      Cargando Catálogo
+                      Cargando Recetas
                     </h4>
                     <p className="text-sm text-gray-500">
-                      Obteniendo productos de la base de datos...
+                      Obteniendo recetas de la base de datos...
                     </p>
                   </div>
                 ) : (
                   <div className="p-4">
-                    {componentesMenu.map((grupo) => (
-                      <div key={grupo.id} className="mb-4">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleMenuGroup(grupo.id)}
-                          className="w-full flex items-center justify-between p-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Package className="w-5 h-5 text-teal-600" />
-                            <span className="font-medium text-gray-900">{grupo.nombre}</span>
-                          </div>
-                          <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${grupo.expandido ? 'rotate-90' : ''}`} />
-                        </button>
-
-                        {grupo.expandido && (
-                          <div className="mt-2 ml-6 space-y-2">
-                            {grupo.tipos.map((tipo) => (
-                              <div key={tipo.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleMenuTipo(grupo.id, tipo.id)}
-                                  className="w-full flex items-center justify-between p-2 text-left hover:bg-gray-50 rounded transition-colors"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {getIconForTipo(tipo.nombre)}
-                                    <span className="text-sm font-medium text-gray-700">{tipo.nombre}</span>
-                                  </div>
-                                  <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${tipo.expandido ? 'rotate-90' : ''}`} />
-                                </button>
-
-                                {tipo.expandido && (
-                                  <div className="mt-2 ml-6 space-y-1">
-                                    {tipo.productos.map((producto) => (
-                                      <div
-                                        key={producto.id}
-                                        className="flex items-center justify-between p-2 hover:bg-gray-50 rounded transition-colors"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="checkbox"
-                                            checked={menusAsignados.some(p => p.id === producto.id)}
-                                            onChange={() => handleToggleProducto(producto)}
-                                            className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-                                          />
-                                          <span className="text-sm text-gray-700">{producto.nombre}</span>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    <GroupedTable
+                      data={transformRecetasToTableData(recetasAgrupadas)}
+                      groupBy={['tipo_zona', 'nombre_servicio']}
+                      columns={[
+                        {
+                          key: 'nombre',
+                          label: 'Nombre de la Receta'
+                        },
+                        {
+                          key: 'codigo',
+                          label: 'Código'
+                        }
+                      ]}
+                      title=""
+                      showTitle={false}
+                      emptyMessage="No hay recetas disponibles"
+                      defaultExpandedGroups={[]}
+                      showCheckboxes={true}
+                      selectedItems={selectedRecetas}
+                      onItemSelect={handleRecetaSelect}
+                      groupIcons={{}}
+                      onItemClick={(item) => {
+                        // Aquí puedes manejar la selección de recetas
+                        console.log('Receta seleccionada:', item);
+                      }}
+                    />
                   </div>
                 )}
               </div>

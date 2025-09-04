@@ -120,7 +120,7 @@ const Index = () => {
           Estadísticas Detalladas de Contratos
         </h3>
         <p className="text-sm text-gray-600">Resumen completo de todos los contratos registrados en el sistema</p>
-      </div>
+              </div>
 
       {/* Estadísticas principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -141,9 +141,9 @@ const Index = () => {
                       <span className="text-xs font-bold text-cyan-600">{stats?.totalContratos || 0}</span>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+          </CardContent>
+        </Card>
 
             {/* Estados de Contratos */}
             <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
@@ -171,9 +171,9 @@ const Index = () => {
                     </div>
                   </div>
                   <BarChart3 className="w-8 h-8 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+          </CardContent>
+        </Card>
 
             {/* Valores Monetarios */}
             <Card className="border-l-4 border-l-purple-500 shadow-md hover:shadow-lg transition-shadow">
@@ -187,12 +187,12 @@ const Index = () => {
                     <p className="text-xs text-gray-500 mt-1">
                       Promedio: {formatCurrency(stats?.valorPromedioContratos || 0)}
                     </p>
-                  </div>
+              </div>
                   <div className="relative">
                     <DollarSign className="w-10 h-10 text-purple-500" />
                     <TrendingUp className="w-4 h-4 text-purple-600 absolute -bottom-1 -right-1" />
+      </div>
                   </div>
-                </div>
               </CardContent>
             </Card>
 
@@ -207,28 +207,28 @@ const Index = () => {
                         <span className="text-xs text-orange-700 flex items-center gap-1">
                           <Users className="w-3 h-3" />
                           Total PPL
-                        </span>
+                  </span>
                         <span className="text-sm font-bold text-orange-600">
                           {(stats?.totalPPL || 0).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
                         <span className="text-xs text-orange-700 flex items-center gap-1">
                           <Target className="w-3 h-3" />
                           Servicios
                         </span>
                         <span className="text-sm font-bold text-orange-600">
                           {(stats?.totalServicios || 0).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
                         <span className="text-xs text-orange-700 flex items-center gap-1">
                           <Building className="w-3 h-3" />
                           Raciones
-                        </span>
+                    </span>
                         <span className="text-sm font-bold text-orange-600">
                           {(stats?.totalRaciones || 0).toLocaleString()}
-                        </span>
+                    </span>
                       </div>
                     </div>
                   </div>
@@ -255,8 +255,8 @@ const Index = () => {
                     <CheckCircle className="w-10 h-10 text-green-500" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
 
             <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
               <CardContent className="p-4">
