@@ -125,8 +125,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredOptions = options.filter(option =>
-    option.nombre.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    !selectedValues.includes(option.id)
+    option.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const toggleOption = (optionId: string) => {
@@ -156,7 +155,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
             {selectedValues.map(id => {
               const option = options.find(o => o.id === id);
               return (
-                <Badge key={id} variant="secondary" className="text-xs">
+                <Badge key={id} variant="secondary" className="text-xs hover:bg-cyan-100 hover:text-cyan-800">
                   {option?.nombre}
                   <button
                     type="button"
@@ -207,29 +206,50 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                     {zona}
                   </div>
                   {/* Opciones de la zona */}
-                  {opciones.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => toggleOption(option.id)}
-                      className="w-full px-6 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedValues.includes(option.id)}
-                          onChange={() => {}} // El onChange se maneja en el onClick del botón
-                          className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
-                        />
-                        <span>{option.nombre}</span>
-                        {(option as any).zona_nombre && (
-                          <span className="text-xs text-gray-500 ml-auto">
-                            (TIENE MENUS)
+                  {opciones.map((option) => {
+                    const isSelected = selectedValues.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => toggleOption(option.id)}
+                        className="w-full px-6 py-2 text-left focus:outline-none text-sm"
+                        style={{
+                          backgroundColor: isSelected ? '#ecfeff' : 'transparent',
+                          borderLeft: isSelected ? '4px solid #06b6d4' : 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          console.log('Mouse enter - isSelected:', isSelected, 'option:', option.nombre);
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          console.log('Mouse leave - isSelected:', isSelected, 'option:', option.nombre);
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}} // El onChange se maneja en el onClick del botón
+                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                          />
+                          <span className={isSelected ? 'text-cyan-800 font-medium' : 'text-gray-700'}>
+                            {option.nombre}
                           </span>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+                          {(option as any).zona_nombre && (
+                            <span className="text-xs text-gray-500 ml-auto">
+                              (TIENE MENUS)
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               ));
             })()}
@@ -317,28 +337,45 @@ const AsignarMenusPage: React.FC = () => {
   };
 
   const cargarComponentesMenu = async () => {
-    if (selectedUnidades.length === 0) return;
+    if (selectedUnidades.length === 0) {
+      setComponentesMenu([]);
+      return;
+    }
     
     try {
       showLoading('Cargando catálogo de productos...');
-      const response = await ProductosService.getComponentesMenu();
+      
+      // Convertir los IDs de string a number para la consulta
+      const unidadIds = selectedUnidades.map(id => parseInt(id));
+      console.log('🔍 Cargando productos para unidades:', unidadIds);
+      
+      const response = await ProductosService.getProductosPorUnidades(unidadIds);
       if (response.data) {
-        // Agregar estado expandido a cada grupo y tipo
+        // Transformar los datos para que coincidan con la estructura esperada
         const componentesConEstado = response.data.map(grupo => ({
           ...grupo,
           expandido: false,
-          tipos: grupo.tipos.map(tipo => ({
-            ...tipo,
-            expandido: false
-          }))
+          tipos: [
+            {
+              id: 1,
+              nombre: 'Productos',
+              expandido: false,
+              productos: grupo.productos
+            }
+          ]
         }));
         setComponentesMenu(componentesConEstado);
+        console.log('✅ Productos cargados para unidades seleccionadas:', componentesConEstado);
+      } else {
+        setComponentesMenu([]);
+        console.log('⚠️ No se encontraron productos para las unidades seleccionadas');
       }
     } catch (error) {
       console.error('Error cargando componentes de menú:', error);
+      setComponentesMenu([]);
       toast({
         title: "Error",
-        description: "No se pudieron cargar los productos del menú",
+        description: "No se pudieron cargar los productos para las unidades seleccionadas",
         variant: "destructive",
       });
     } finally {
