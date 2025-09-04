@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, Phone, Mail, MapPin, Building } from 'lucide-react';
+import { Search, User, Phone, Mail, MapPin, Building, CheckCircle, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -66,7 +66,7 @@ export const TercerosModal: React.FC<TercerosModalProps> = ({ isOpen, onClose, o
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building className="w-5 h-5 text-cyan-600" />
@@ -89,12 +89,12 @@ export const TercerosModal: React.FC<TercerosModalProps> = ({ isOpen, onClose, o
         <div className="flex-1 overflow-auto border rounded-lg">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-32">Documento</TableHead>
-                <TableHead>Nombre / Razón Social</TableHead>
-                <TableHead className="w-32">Teléfono</TableHead>
-                <TableHead className="w-48">Email</TableHead>
-                <TableHead className="w-24">Acciones</TableHead>
+              <TableRow className="bg-gray-50">
+                <TableHead className="w-48 font-semibold">Documento</TableHead>
+                <TableHead className="font-semibold">Nombre / Razón Social</TableHead>
+                <TableHead className="w-28 font-semibold">Teléfono</TableHead>
+                <TableHead className="w-40 font-semibold">Email</TableHead>
+                <TableHead className="w-16 font-semibold text-center">Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -113,53 +113,55 @@ export const TercerosModal: React.FC<TercerosModalProps> = ({ isOpen, onClose, o
                 filteredTerceros.map((tercero) => (
                   <TableRow 
                     key={tercero.id}
-                    className="hover:bg-cyan-50 cursor-pointer transition-colors"
+                    className="hover:bg-cyan-50 cursor-pointer transition-colors py-2"
                     onClick={() => handleSelectTercero(tercero)}
                   >
-                    <TableCell>
+                    <TableCell className="py-2">
                       <div className="flex flex-col">
-                        <span className="font-medium text-gray-900">
+                        <span className="font-medium text-gray-900 text-sm">
                           {formatDocumento(tercero.documento, tercero.digito)}
                         </span>
                         <span className="text-xs text-gray-500">NIT</span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-cyan-600" />
-                        <span className="font-medium text-gray-900">
+                        <span className="font-medium text-gray-900 text-sm">
                           {tercero.nombre_tercero}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2">
                       {tercero.telefono && (
                         <div className="flex items-center gap-1">
                           <Phone className="w-3 h-3 text-gray-400" />
-                          <span className="text-sm text-gray-600">{tercero.telefono}</span>
+                          <span className="text-xs text-gray-600">{tercero.telefono}</span>
                         </div>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2">
                       {tercero.email && (
                         <div className="flex items-center gap-1">
                           <Mail className="w-3 h-3 text-gray-400" />
-                          <span className="text-sm text-gray-600 truncate" title={tercero.email}>
+                          <span className="text-xs text-gray-600 truncate" title={tercero.email}>
                             {tercero.email}
                           </span>
                         </div>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2 text-center">
                       <Button
-                        size="sm"
+                        variant="ghost"
+                        size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleSelectTercero(tercero);
                         }}
-                        className="bg-cyan-600 hover:bg-cyan-700 text-white"
+                        className="h-6 w-6 p-0 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-100 transition-all duration-200"
+                        title="Seleccionar tercero"
                       >
-                        Seleccionar
+                        <CheckCircle className="w-3 h-3" />
                       </Button>
                     </TableCell>
                   </TableRow>

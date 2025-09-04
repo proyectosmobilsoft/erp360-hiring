@@ -5,16 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { createPortal } from 'react-dom';
 import {
   Activity,
-  Users,
   User,
   ChevronDown,
   ChevronRight,
   LogOut,
   Mail,
   Shield,
-  Key,
-  Lock,
   FileText,
+  UtensilsCrossed,
 } from 'lucide-react';
 
 const menuItems = [
@@ -31,13 +29,16 @@ const menuItems = [
     subItems: [],
   },
   {
-    title: "Seguridad",
-    icon: <Shield className="h-5 w-5" />,
-    subItems: [
-      { title: "Usuarios", path: "/seguridad/usuarios", icon: <Users className="h-4 w-4" /> },
-      { title: "Perfiles", path: "/seguridad/perfiles", icon: <Key className="h-4 w-4" /> },
-      { title: "Permisos", path: "/seguridad/permisos", icon: <Lock className="h-4 w-4" /> },
-    ],
+    title: "Asignar Menús",
+    icon: <UtensilsCrossed className="h-5 w-5" />,
+    path: "/asignar-menus",
+    subItems: [],
+  },
+  {
+    title: "Minutas del Contrato",
+    icon: <FileText className="h-5 w-5" />,
+    path: "/minutas-contrato",
+    subItems: [],
   },
 ];
 

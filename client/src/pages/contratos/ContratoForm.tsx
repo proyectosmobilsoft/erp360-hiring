@@ -502,17 +502,14 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState('general');
   const [zonasAgregadas, setZonasAgregadas] = useState<ZonaLocal[]>([]);
-  const [selectedZona, setSelectedZona] = useState<string>('');
+  const [selectedZona, setSelectedZona] = useState('');
   const [showZonaDropdown, setShowZonaDropdown] = useState(false);
 
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [zonasDisponibles, setZonasDisponibles] = useState<Zona[]>([]);
   const [contratosDisponibles, setContratosDisponibles] = useState<ContratoCRUD[]>([]);
   const [unidadesServicio, setUnidadesServicio] = useState<UnidadServicio[]>([]);
-  const [unidadesFiltradas, setUnidadesFiltradas] = useState<UnidadServicio[]>([]);
-  const [componentesMenu, setComponentesMenu] = useState<ComponenteMenu[]>([]);
-  const [menusAsignados, setMenusAsignados] = useState<{ id: number, nombre: string }[]>([]);
-  const [filterText, setFilterText] = useState('');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingFormData, setPendingFormData] = useState<ContratoFormData | null>(null);
@@ -520,11 +517,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
   const [terceroSeleccionado, setTerceroSeleccionado] = useState<Tercero | null>(null);
   const [terceroIdSeleccionado, setTerceroIdSeleccionado] = useState<number | null>(null);
 
-  // Estados para asignación de menús
-  const [menus, setMenus] = useState<MenuGroup[]>(menuGroups);
-  const [selectedTipoMenu, setSelectedTipoMenu] = useState<string | null>(null);
-  const [selectedContrato, setSelectedContrato] = useState<string>('');
-  const [selectedUnidades, setSelectedUnidades] = useState<string[]>([]);
+
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -580,14 +573,6 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
         const unidadesResponse = await UnidadesServicioService.getUnidadesServicio();
         if (unidadesResponse.data) {
           setUnidadesServicio(unidadesResponse.data);
-          setUnidadesFiltradas(unidadesResponse.data); // Inicialmente mostrar todas
-        }
-
-        // Cargar productos reales organizados por componente de menú
-        const productosResponse = await ProductosService.getProductosPorComponente();
-        if (productosResponse.data) {
-          setComponentesMenu(productosResponse.data);
-          console.log('✅ Componentes de menú cargados:', productosResponse.data);
         }
       } catch (error) {
         console.error('Error cargando datos iniciales:', error);
@@ -633,75 +618,11 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
         setTerceroIdSeleccionado(contratoEnEdicion.id_tercero);
       }
 
-      // Preseleccionar el contrato actual en el tab de asignación usando el nuevo formato
-      setSelectedContrato(`(No. ${contratoEnEdicion.no_contrato}) ${contratoEnEdicion.objetivo.toUpperCase()}`);
-
-      // Las unidades se cargarán automáticamente por el useEffect de selectedContrato
       cargarZonasContrato();
     }
   }, [contratoEnEdicion]);
 
-  // useEffect para cargar unidades cuando cambie el contrato seleccionado
-  useEffect(() => {
-    const cargarUnidadesDelContratoSeleccionado = async () => {
-      console.log('🔄 useEffect selectedContrato ejecutándose');
-      console.log('📊 Estado actual - selectedContrato:', selectedContrato);
-      console.log('📊 Estado actual - contratosDisponibles:', contratosDisponibles.length);
-      console.log('📊 Estado actual - contratoEnEdicion:', contratoEnEdicion?.id);
 
-      if (selectedContrato && contratosDisponibles.length > 0) {
-        console.log('✅ Condiciones cumplidas, buscando contrato...');
-
-        // Encontrar el contrato seleccionado usando el formato
-        const contratoSeleccionado = contratosDisponibles.find(c =>
-          `(No. ${c.no_contrato}) ${c.objetivo.toUpperCase()}` === selectedContrato
-        );
-
-        console.log('🎯 Contrato encontrado para cargar unidades:', contratoSeleccionado);
-
-        if (contratoSeleccionado && contratoSeleccionado.id) {
-          console.log('📡 Cargando unidades automáticamente para contrato ID:', contratoSeleccionado.id);
-
-          try {
-            const unidadesDelContrato = await getUnidadesPorContrato(contratoSeleccionado.id);
-            console.log('📋 Unidades cargadas automáticamente:', unidadesDelContrato);
-            setUnidadesFiltradas(unidadesDelContrato);
-
-            // Si estamos editando, también preseleccionar las unidades
-            if (contratoEnEdicion && contratoEnEdicion.id === contratoSeleccionado.id) {
-              const nombresUnidades = unidadesDelContrato.map(unidad => unidad.nombre_servicio);
-              console.log('📝 Preseleccionando unidades del contrato en edición:', nombresUnidades);
-              setSelectedUnidades(nombresUnidades);
-            } else {
-              console.log('ℹ️ No estamos editando o IDs no coinciden');
-              // Si no estamos editando, limpiar selecciones previas
-              setSelectedUnidades([]);
-            }
-          } catch (error) {
-            console.error('Error cargando unidades automáticamente:', error);
-            setUnidadesFiltradas([]);
-          }
-        } else {
-          console.log('❌ No se encontró contrato válido o sin ID');
-          setUnidadesFiltradas([]);
-          setSelectedUnidades([]);
-        }
-      } else {
-        console.log('🚫 Condiciones no cumplidas para cargar unidades');
-        console.log('   - selectedContrato:', !!selectedContrato);
-        console.log('   - contratosDisponibles.length:', contratosDisponibles.length);
-        setUnidadesFiltradas([]);
-        setSelectedUnidades([]);
-      }
-    };
-
-    // Agregar un pequeño delay para asegurar que los datos estén cargados
-    const timer = setTimeout(() => {
-      cargarUnidadesDelContratoSeleccionado();
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [selectedContrato, contratosDisponibles, contratoEnEdicion]);
 
   console.log('ContratoForm - contratoEnEdicion recibido:', contratoEnEdicion); // Debug
 
@@ -960,52 +881,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
     }
   };
 
-  // Función para manejar la asignación de menús
-  const handleAsignarMenus = () => {
-    console.log('🎯 Asignando menús seleccionados...');
-    // TODO: Implementar lógica de asignación
-  };
 
-  // Función para obtener unidades del contrato seleccionado
-  const getUnidadesPorContrato = async (contratoId: number) => {
-    try {
-      const response = await UnidadesServicioService.getUnidadesPorContrato(contratoId);
-      return response.data || [];
-    } catch (error) {
-      console.error('Error obteniendo unidades del contrato:', error);
-      return [];
-    }
-  };
-
-  // Función para manejar el cambio de contrato y filtrar unidades
-  const handleContratoChange = async (contratoValue: string) => {
-    console.log('🔄 handleContratoChange llamado con:', contratoValue);
-    setSelectedContrato(contratoValue);
-    setSelectedUnidades([]); // Limpiar unidades seleccionadas
-
-    if (contratoValue) {
-      // Encontrar el contrato seleccionado usando el nuevo formato
-      const contratoSeleccionado = contratosDisponibles.find(c =>
-        `(No. ${c.no_contrato}) ${c.objetivo.toUpperCase()}` === contratoValue
-      );
-
-      console.log('🎯 Contrato encontrado:', contratoSeleccionado);
-
-      if (contratoSeleccionado && contratoSeleccionado.id) {
-        console.log('📡 Cargando unidades para contrato ID:', contratoSeleccionado.id);
-        // Cargar unidades específicas de este contrato
-        const unidadesDelContrato = await getUnidadesPorContrato(contratoSeleccionado.id);
-        console.log('📋 Unidades obtenidas:', unidadesDelContrato);
-        setUnidadesFiltradas(unidadesDelContrato);
-      } else {
-        console.log('❌ No se encontró contrato o no tiene ID');
-        setUnidadesFiltradas([]); // No hay unidades si no se encuentra el contrato
-      }
-    } else {
-      console.log('🚫 No hay contrato seleccionado');
-      setUnidadesFiltradas([]); // No mostrar unidades si no hay contrato seleccionado
-    }
-  };
 
   const handleAddZona = () => {
     const zonaSeleccionada = zonasDisponibles.find(z => z.nombre === selectedZona);
@@ -1024,121 +900,9 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
     }
   };
 
-  // Funciones para asignación de menús
-  const handleToggleMenuGroup = (groupId: string) => {
-    // Validar que haya al menos una unidad de servicio seleccionada
-    if (selectedUnidades.length === 0) {
-      toast({
-        title: "Seleccione unidades de servicio",
-        description: "Debe seleccionar al menos una unidad de servicio antes de expandir los menús",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    setMenus(prev => prev.map(group =>
-      group.id === groupId
-        ? { ...group, expandido: !group.expandido }
-        : group
-    ));
-  };
 
-  const handleToggleMenuTipo = (groupId: string, tipoId: string) => {
-    // Validar que haya al menos una unidad de servicio seleccionada
-    if (selectedUnidades.length === 0) {
-      toast({
-        title: "Seleccione unidades de servicio",
-        description: "Debe seleccionar al menos una unidad de servicio antes de expandir los tipos de menú",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    setMenus(prev => prev.map(group => {
-      if (group.id === groupId) {
-        const updatedTipos = group.tipos.map(tipo =>
-          tipo.id === tipoId
-            ? { ...tipo, expandido: !tipo.expandido }
-            : tipo
-        );
-        return { ...group, tipos: updatedTipos };
-      }
-      return group;
-    }));
-  };
-
-  const handleSelectMenuItem = (groupId: string, itemId: string) => {
-    // Validar que haya al menos una unidad de servicio seleccionada
-    if (selectedUnidades.length === 0) {
-      toast({
-        title: "Seleccione unidades de servicio",
-        description: "Debe seleccionar al menos una unidad de servicio antes de seleccionar menús",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setMenus(prev => prev.map(group => {
-      if (group.id === groupId) {
-        const updatedTipos = group.tipos.map(tipo => {
-          const updatedItems = tipo.items.map(item => {
-            if (item.id === itemId) {
-              const newSeleccionado = !item.seleccionado;
-
-              // Si es la primera selección, establecer el tipo de menú
-              if (newSeleccionado && !selectedTipoMenu) {
-                setSelectedTipoMenu(item.tipo);
-              }
-
-              // Si se deselecciona y no hay otros seleccionados del mismo tipo, limpiar tipo seleccionado
-              if (!newSeleccionado) {
-                const otrosSeleccionados = tipo.items.filter(i =>
-                  i.id !== itemId && i.seleccionado && i.tipo === item.tipo
-                );
-                if (otrosSeleccionados.length === 0) {
-                  setSelectedTipoMenu(null);
-                }
-              }
-
-              return { ...item, seleccionado: newSeleccionado };
-            }
-            return item;
-          });
-          return { ...tipo, items: updatedItems };
-        });
-        return { ...group, tipos: updatedTipos };
-      }
-      return group;
-    }));
-  };
-
-  const handleSelectAll = () => {
-    const tipoActual = selectedTipoMenu;
-    setMenus(prev => prev.map(group => ({
-      ...group,
-      tipos: group.tipos.map(tipo => ({
-        ...tipo,
-        items: tipo.items.map(item => ({
-          ...item,
-          seleccionado: tipoActual ? item.tipo === tipoActual : true
-        }))
-      }))
-    })));
-  };
-
-  const getFilteredMenus = () => {
-    return menus.map(group => ({
-      ...group,
-      tipos: group.tipos.map(tipo => ({
-        ...tipo,
-        items: tipo.items.filter(item => {
-          const matchesFilter = item.nombre.toLowerCase().includes(filterText.toLowerCase());
-          const matchesTipo = !selectedTipoMenu || item.tipo === selectedTipoMenu;
-          return matchesFilter && matchesTipo;
-        })
-      }))
-    })).filter(group => group.tipos.some(tipo => tipo.items.length > 0));
-  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -1278,7 +1042,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                     <div className="border-b border-gray-200 bg-white">
                       <div className="flex items-center justify-center p-4">
                         <div className="w-4/5">
-                          <div className="grid w-full grid-cols-4 bg-cyan-100/60 p-1 rounded-lg">
+                          <div className="grid w-full grid-cols-2 bg-cyan-100/60 p-1 rounded-lg">
                             <button
                               type="button"
                               onClick={() => setActiveTab('general')}
@@ -1291,16 +1055,6 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                             </button>
                             <button
                               type="button"
-                              onClick={() => setActiveTab('asignacion')}
-                              className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-300 ${activeTab === 'asignacion'
-                                ? 'bg-cyan-600 text-white shadow-md'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            >
-                              Asignación de Menús
-                            </button>
-                            <button
-                              type="button"
                               onClick={() => setActiveTab('clausulas')}
                               className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-300 ${activeTab === 'clausulas'
                                 ? 'bg-cyan-600 text-white shadow-md'
@@ -1308,16 +1062,6 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                 }`}
                             >
                               Cláusulas
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setActiveTab('minutas')}
-                              className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-300 ${activeTab === 'minutas'
-                                ? 'bg-cyan-600 text-white shadow-md'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            >
-                              Minutas del contrato
                             </button>
                           </div>
                         </div>
@@ -1661,345 +1405,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                         </div>
                       )}
 
-                      {activeTab === 'asignacion' && (
-                        <div className="p-4">
-                          {/* Campos superiores */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                            <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-blue-600" />
-                                {contratoEnEdicion ? 'Contrato Seleccionado' : 'Seleccione un Contrato'}
-                              </label>
-                              <SelectWithSearch
-                                options={contratosDisponibles.map(c => ({
-                                  id: c.id?.toString() || '0',
-                                  nombre: `(No. ${c.no_contrato}) ${c.objetivo.toUpperCase()}`
-                                }))}
-                                value={selectedContrato}
-                                onChange={handleContratoChange}
-                                placeholder="Buscar contrato..."
-                                disabled={!!contratoEnEdicion} // Deshabilitar al editar
-                              />
-                            </div>
-                            {(selectedContrato || contratoEnEdicion) && (
-                              <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                                  <MapPin className="w-4 h-4 text-indigo-600" />
-                                  {contratoEnEdicion ? 'Unidades de Servicio del Contrato' : 'Seleccione una o varias Unidades de Servicio'}
-                                </label>
-                                <MultiSelect
-                                  options={unidadesFiltradas.map(u => ({
-                                    id: u.id.toString(),
-                                    nombre: u.nombre_servicio
-                                  }))}
-                                  selectedValues={selectedUnidades}
-                                  onChange={setSelectedUnidades}
-                                  placeholder="Seleccionar unidades..."
-                                />
-                              </div>
-                            )}
-                          </div>
 
-                          {/* Contenedor principal con dos columnas */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Columna izquierda - Catálogo de Productos */}
-                            <div className="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                              {/* Header moderno con gradiente */}
-                              <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-teal-600 p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                                    <Package className="w-5 h-5 text-white" />
-                                  </div>
-                                  <div>
-                                    <h3 className="text-xl font-bold text-white">
-                                      Catálogo de Productos
-                                    </h3>
-                                    <p className="text-blue-100 text-sm">
-                                      Seleccione los productos para el menú
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {/* Barra de búsqueda moderna */}
-                                <div className="relative">
-                                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/70" />
-                                  <input
-                                    type="text"
-                                    placeholder="Buscar productos..."
-                                    value={filterText}
-                                    onChange={(e) => setFilterText(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/30 focus:bg-white/20 transition-all backdrop-blur-sm"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Contenedor del treeview con scroll personalizado */}
-                              <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                                {selectedUnidades.length === 0 ? (
-                                  <div className="p-12 text-center">
-                                    <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
-                                      <Settings className="w-10 h-10 text-gray-400" />
-                                    </div>
-                                    <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                                      Seleccione Unidades de Servicio
-                                    </h4>
-                                    <p className="text-sm text-gray-500 max-w-xs mx-auto">
-                                      Para ver el catálogo de productos disponibles, primero seleccione al menos una unidad de servicio
-                                    </p>
-                                  </div>
-                                ) : componentesMenu.length === 0 ? (
-                                  <div className="p-12 text-center">
-                                    <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
-                                      <Package className="w-10 h-10 text-blue-500 animate-pulse" />
-                                    </div>
-                                    <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                                      Cargando Catálogo
-                                    </h4>
-                                    <p className="text-sm text-gray-500">
-                                      Obteniendo productos de la base de datos...
-                                    </p>
-                                  </div>
-                                ) : (
-                                  <div className="p-2">
-                                    {componentesMenu
-                                      .filter(componente =>
-                                        filterText === '' ||
-                                        componente.nombre.toLowerCase().includes(filterText.toLowerCase()) ||
-                                        componente.productos.some(p => p.nombre.toLowerCase().includes(filterText.toLowerCase()))
-                                      )
-                                      .map((componente) => (
-                                        <div key={componente.id} className="mb-2 last:mb-0">
-                                          {/* Componente de Menú - Diseño moderno */}
-                                          <div className="bg-gradient-to-r from-white to-gray-50 rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setComponentesMenu(prev =>
-                                                  prev.map(c =>
-                                                    c.id === componente.id
-                                                      ? { ...c, expandido: !c.expandido }
-                                                      : c
-                                                  )
-                                                );
-                                              }}
-                                              className="w-full p-4 text-left hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 flex items-center justify-between transition-all duration-300 group"
-                                            >
-                                              <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                                                  {getComponentIcon(componente.nombre)}
-                                                </div>
-                                                <div>
-                                                  <h4 className="font-bold text-gray-900 text-lg group-hover:text-blue-700 transition-colors">
-                                                    {componente.nombre}
-                                                  </h4>
-                                                  <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full border shadow-sm">
-                                                      📦 {componente.productos.length} productos
-                                                    </span>
-                                                    <span className="text-xs text-gray-400">
-                                                      Disponibles para selección
-                                                    </span>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                              <div className="flex items-center gap-2">
-                                                <ChevronRight
-                                                  className={`w-5 h-5 text-gray-400 transition-all duration-300 group-hover:text-blue-500 ${componente.expandido ? 'rotate-90 text-blue-500' : ''
-                                                    }`}
-                                                />
-                                              </div>
-                                            </button>
-
-                                            {/* Lista de Productos - Animación de expansión */}
-                                            <div className={`overflow-hidden transition-all duration-500 ease-out ${componente.expandido ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                                              }`}>
-                                              <div className="bg-gradient-to-br from-gray-50 to-white border-t border-gray-100">
-                                                {componente.productos
-                                                  .filter(producto =>
-                                                    filterText === '' ||
-                                                    producto.nombre.toLowerCase().includes(filterText.toLowerCase())
-                                                  )
-                                                  .map((producto, index) => (
-                                                    <div
-                                                      key={producto.id}
-                                                      className={`flex items-center gap-4 p-4 hover:bg-gradient-to-r hover:from-teal-50 hover:to-blue-50 transition-all duration-300 border-b border-gray-100/50 last:border-b-0 group cursor-pointer ${index % 2 === 0 ? 'bg-white/50' : 'bg-gray-50/30'
-                                                        }`}
-                                                      style={{
-                                                        animationDelay: `${index * 50}ms`
-                                                      }}
-                                                    >
-                                                      {/* Checkbox moderno */}
-                                                      <div className="relative">
-                                                        <input
-                                                          type="checkbox"
-                                                          // checked={producto.seleccionado}
-                                                          onChange={() => {
-                                                            console.log('🎯 Producto seleccionado:', producto);
-                                                          }}
-                                                          className="w-5 h-5 rounded-lg border-2 border-gray-300 text-teal-600 focus:ring-2 focus:ring-teal-500 focus:ring-offset-1 transition-all hover:border-teal-400"
-                                                        />
-                                                      </div>
-
-                                                      {/* Icono de categoría */}
-                                                      <div className="w-10 h-10 bg-white rounded-lg border border-gray-200 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                                                        {getProductIcon(producto.categoria)}
-                                                      </div>
-
-                                                      {/* Información del producto */}
-                                                      <div className="flex-1 min-w-0">
-                                                        <h5 className="text-sm font-semibold text-gray-900 truncate group-hover:text-teal-700 transition-colors">
-                                                          {producto.nombre}
-                                                        </h5>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                          <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-md border">
-                                                            {producto.categoria}
-                                                          </span>
-                                                          <span className="text-xs text-gray-400">•</span>
-                                                          <span className="text-xs text-gray-500">
-                                                            {producto.sublinea}
-                                                          </span>
-                                                        </div>
-                                                      </div>
-
-                                                      {/* Badges modernos */}
-                                                      <div className="flex flex-col gap-1">
-                                                        <span className={`text-xs px-3 py-1 rounded-full font-medium shadow-sm ${componente.nombre === 'Desayuno' ? 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800 border border-yellow-200' :
-                                                          componente.nombre === 'Almuerzo' ? 'bg-gradient-to-r from-orange-100 to-red-100 text-orange-800 border border-orange-200' :
-                                                            componente.nombre === 'Cena' ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 border border-purple-200' :
-                                                              'bg-gradient-to-r from-gray-100 to-slate-100 text-gray-800 border border-gray-200'
-                                                          }`}>
-                                                          {componente.nombre}
-                                                        </span>
-                                                        {producto.tipo_menu && (
-                                                          <span className="text-xs bg-gradient-to-r from-teal-100 to-cyan-100 text-teal-700 px-2 py-0.5 rounded-full border border-teal-200 text-center">
-                                                            Tipo {producto.tipo_menu}
-                                                          </span>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                  ))}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))
-                                    }
-                                  </div>
-                                )}
-                                {/* Botón Asignar Menús - Diseño moderno */}
-                                <div className="p-6 bg-gradient-to-r from-gray-50 to-white border-t border-gray-200">
-                                  <button
-                                    type="button"
-                                    onClick={handleAsignarMenus}
-                                    className="w-full bg-gradient-to-r from-teal-500 via-blue-500 to-purple-500 hover:from-teal-600 hover:via-blue-600 hover:to-purple-600 text-white px-6 py-4 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3 group"
-                                  >
-                                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center group-hover:rotate-12 transition-transform duration-300">
-                                      <ArrowRight className="w-4 h-4" />
-                                    </div>
-                                    <span className="tracking-wide">ASIGNAR PRODUCTOS AL MENÚ</span>
-                                    <div className="w-2 h-2 bg-white/40 rounded-full animate-pulse"></div>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Columna derecha - Productos Seleccionados */}
-                              <div className="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-                                {/* Header moderno */}
-                                <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 p-6">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                                      <Check className="w-5 h-5 text-white" />
-                                    </div>
-                                    <div>
-                                      <h3 className="text-xl font-bold text-white">
-                                        Productos Seleccionados
-                                      </h3>
-                                      <p className="text-cyan-100 text-sm">
-                                        {menusAsignados.length} productos en el menú
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="min-h-96">
-                                  {menusAsignados.length > 0 ? (
-                                    <div className="p-4">
-                                      <div className="space-y-2">
-                                        {menusAsignados.map((menu, index) => (
-                                          <div
-                                            key={menu.id}
-                                            className="bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-300 group"
-                                            style={{
-                                              animationDelay: `${index * 100}ms`
-                                            }}
-                                          >
-                                            <div className="flex items-center gap-4">
-                                              <div className="w-10 h-10 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-lg flex items-center justify-center">
-                                                <Check className="w-5 h-5 text-teal-600" />
-                                              </div>
-
-                                              <div className="flex-1">
-                                                <h5 className="text-sm font-semibold text-gray-900 group-hover:text-teal-700 transition-colors">
-                                                  {menu.nombre}
-                                                </h5>
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                  Producto asignado al menú
-                                                </p>
-                                              </div>
-
-                                              <button
-                                                type="button"
-                                                onClick={() => setMenusAsignados(prev => prev.filter(m => m.id !== menu.id))}
-                                                className="w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 rounded-lg flex items-center justify-center transition-all duration-200 hover:scale-110"
-                                              >
-                                                <X className="w-4 h-4" />
-                                              </button>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="p-12 flex flex-col items-center justify-center text-center h-full">
-                                      <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-full flex items-center justify-center">
-                                        <UtensilsCrossed className="w-10 h-10 text-teal-500" />
-                                      </div>
-                                      <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                                        Menú Vacío
-                                      </h4>
-                                      <p className="text-sm text-gray-500 max-w-xs">
-                                        Los productos que seleccione aparecerán aquí para formar el menú del contrato
-                                      </p>
-                                      <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
-                                        <ArrowRight className="w-3 h-3" />
-                                        <span>Seleccione productos de la izquierda</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Botones de acción */}
-                            <div className="flex justify-end gap-3 mt-6">
-                              <button
-                                type="button"
-                                className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded flex items-center gap-2 transition-colors"
-                              >
-                                <Check className="w-4 h-4" />
-                                Aceptar
-                              </button>
-                              <button
-                                type="button"
-                                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded flex items-center gap-2 transition-colors"
-                              >
-                                <ArrowRight className="w-4 h-4" />
-                                Cerrar
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
 
                       {activeTab === 'clausulas' && (
                         <div className="p-6">
@@ -2059,12 +1465,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                         </div>
                       )}
 
-                      {activeTab === 'minutas' && (
-                        <div className="p-4">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-4">Minutas del Contrato</h3>
-                          <p className="text-gray-600">Contenido de las minutas...</p>
-                        </div>
-                      )}
+
                     </div>
                   </div>
                 </Form >

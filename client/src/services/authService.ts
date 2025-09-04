@@ -139,7 +139,7 @@ export const authService: AuthService = {
           email,
           primer_nombre,
           primer_apellido,
-          password_hash,
+          password,
           foto_base64,
           activo,
           gen_usuario_empresas (
@@ -216,55 +216,8 @@ export const authService: AuthService = {
         .filter((id: any) => Number.isFinite(id));
       const roleIdsUnique = Array.from(new Set<number>([...roleIdsFromJoin, ...roleIdsFromRoles] as number[]));
 
-      // Intentar usar la función RPC check_password
-      try {
-        const { data: verifyData, error: verifyError } = await supabase.rpc('check_password', {
-          password_to_check: password,
-          stored_hash: safeUserData.password_hash
-        });
-
-        if (!verifyError && verifyData === true) {
-          // Actualizar último acceso del usuario
-          if (safeUserData.id) {
-            await supabase
-              .from('gen_usuarios')
-              .update({ ultimo_acceso: new Date().toISOString() })
-              .eq('id', safeUserData.id);
-          }
-
-          // Obtener acciones por rol con ids robustos
-          const { accionesPorRol, acciones } = await getAccionesPorRolByIds(roleIdsUnique);
-          // Retornar datos completos del usuario para guardar en localStorage
-          return {
-            success: true,
-            userData: {
-              id: safeUserData.id,
-              username: safeUserData.username,
-              email: safeUserData.email,
-              primerNombre: safeUserData.primer_nombre,
-              primerApellido: safeUserData.primer_apellido,
-              foto_base64: safeUserData.foto_base64,
-              role: roles.length > 0 ? roles[0].nombre : 'admin', // Usar el primer rol o admin por defecto
-              activo: safeUserData.activo,
-              roles: roles,
-              empresas: empresas,
-              accionesPorRol,
-              acciones,
-              ultimoAcceso: new Date().toISOString(), // Incluir último acceso
-              // Información adicional del usuario
-              password_hash: safeUserData.password_hash // Solo para debug, no usar en producción
-            }
-          };
-        } else {
-          return { success: false };
-        }
-      } catch (rpcError) {
-        // Función check_password no disponible, usando fallback base64
-      }
-
-      // Fallback final: comparar con hash simple (base64)
-      const simpleHash = btoa(password);
-      const isMatch = simpleHash === safeUserData.password_hash;
+      // Comparar contraseña directamente (sin hash)
+      const isMatch = password === safeUserData.password;
       
       if (isMatch) {
         // Actualizar último acceso del usuario
@@ -293,7 +246,7 @@ export const authService: AuthService = {
             acciones,
             ultimoAcceso: new Date().toISOString(), // Incluir último acceso
             // Información adicional del usuario
-            password_hash: safeUserData.password_hash // Solo para debug
+            password: safeUserData.password // Solo para debug
           }
         };
       }
@@ -443,12 +396,10 @@ export const authService: AuthService = {
       }
       
       // Hash de la nueva contraseña (base64 por ahora)
-      const passwordHash = btoa(nuevaContraseña);
-      
-      // Actualizar contraseña en la tabla de usuarios
+      // Actualizar contraseña en la tabla de usuarios (sin hash)
       const { error: updateError } = await supabase
         .from('gen_usuarios')
-        .update({ password_hash: passwordHash })
+        .update({ password: nuevaContraseña })
         .eq('email', email);
       
       if (updateError) throw updateError;

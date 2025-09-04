@@ -27,6 +27,8 @@ import MenuPage from './pages/seguridad/MenuPage';
 
 // Páginas de contratos
 import ContratosList from './pages/contratos/ContratosList';
+import AsignarMenusPage from './pages/contratos/AsignarMenusPage';
+import MinutasContratoPage from './pages/contratos/MinutasContratoPage';
 
 import NotFound from './pages/NotFound';
 
@@ -65,6 +67,8 @@ function AppContent() {
             
             {/* Rutas de contratos */}
             <Route path="/contratos" element={<ContratosList />} />
+            <Route path="/asignar-menus" element={<AsignarMenusPage />} />
+            <Route path="/minutas-contrato" element={<MinutasContratoPage />} />
             
             {/* Rutas de seguridad */}
             <Route path="/usuarios" element={<UsuariosPage />} />

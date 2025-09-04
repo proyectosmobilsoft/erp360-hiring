@@ -8,6 +8,8 @@ export interface UnidadServicio {
   no_ppl: number;
   created_at?: string;
   updated_at?: string;
+  zona_nombre?: string;
+  zona_id?: number;
 }
 
 interface UnidadesServicioResponse {
@@ -39,52 +41,90 @@ export class UnidadesServicioService {
    */
   static async getUnidadesPorContrato(contratoId: number): Promise<UnidadesServicioResponse> {
     try {
-      console.log('🔍 Buscando unidades para contrato ID:', contratoId);
-      
-      // Primero obtener los IDs de unidades del contrato
-      const { data: idsData, error: idsError } = await supabase
-        .from('inv_productos_unidad_servicio')
-        .select('id_unidad_servicio')
-        .eq('id_contrato', contratoId)
-        .eq('estado', 1);
+      console.log('🔍 Obteniendo unidades de servicio para contrato:', contratoId);
 
-      console.log('📊 IDs de unidades encontrados:', idsData);
-
-      if (idsError || !idsData || idsData.length === 0) {
-        console.log('❌ No se encontraron IDs de unidades o error:', idsError);
-        return { data: [], error: idsError, count: 0 };
-      }
-
-      // Obtener IDs únicos
-      const idsUnicos = [...new Set(idsData.map(item => item.id_unidad_servicio))];
-      console.log('🔢 IDs únicos de unidades:', idsUnicos);
-
-      // Ahora obtener los datos completos de las unidades
-      const { data, error, count } = await supabase
-        .from('prod_unidad_servicios')
+      // Obtener las unidades de servicio con información de zona usando la estructura correcta
+      const { data, error } = await supabase
+        .from('prod_zonas_by_contrato')
         .select(`
-          id,
-          codigo,
-          nombre_servicio,
-          no_ppl,
-          id_municipio
+          id_zona,
+          prod_zonas_contrato!inner (
+            id,
+            nombre,
+            activo
+          )
         `)
-        .in('id', idsUnicos)
-        .order('nombre_servicio', { ascending: true });
-
-      console.log('📊 Datos finales de unidades:', data);
-      console.log('❌ Error en consulta final:', error);
+        .eq('id_contrato', contratoId)
+        .eq('prod_zonas_contrato.activo', true);
 
       if (error) {
-        console.error('Error en getUnidadesPorContrato:', error);
+        console.error('❌ Error obteniendo zonas del contrato:', error);
         return { data: null, error, count: null };
       }
 
-      console.log('✅ Unidades únicas encontradas:', data);
+      if (!data || data.length === 0) {
+        console.log('⚠️ No se encontraron zonas para el contrato:', contratoId);
+        return { data: [], error: null, count: 0 };
+      }
 
-      return { data: data as UnidadServicio[], error: null, count: data?.length || 0 };
+      // Obtener las unidades de servicio para cada zona
+      const unidadesConZona: UnidadServicio[] = [];
+      
+      for (const zonaContrato of data) {
+        const zona = zonaContrato.prod_zonas_contrato;
+        
+        // Obtener las unidades de servicio para esta zona específica
+        const { data: unidadesData, error: unidadesError } = await supabase
+          .from('prod_zonas_detalle_contratos')
+          .select(`
+            id_unidad_servicio,
+            prod_unidad_servicios (
+              id,
+              codigo,
+              nombre_servicio,
+              id_municipio,
+              no_ppl,
+              created_at,
+              updated_at
+            )
+          `)
+          .eq('id_zona', zona.id);
+
+        if (unidadesError) {
+          console.error('❌ Error obteniendo unidades para zona:', zona.nombre, unidadesError);
+          continue;
+        }
+
+        if (unidadesData && unidadesData.length > 0) {
+          unidadesData.forEach(detalle => {
+            const unidad = detalle.prod_unidad_servicios;
+            if (unidad) {
+              unidadesConZona.push({
+                id: unidad.id,
+                codigo: unidad.codigo,
+                nombre_servicio: unidad.nombre_servicio,
+                id_municipio: unidad.id_municipio,
+                no_ppl: unidad.no_ppl,
+                created_at: unidad.created_at,
+                updated_at: unidad.updated_at,
+                zona_nombre: zona.nombre,
+                zona_id: zona.id
+              });
+            }
+          });
+        }
+      }
+
+      // Eliminar duplicados basándose en el ID
+      const unidadesUnicas = unidadesConZona.filter((unidad, index, self) => 
+        index === self.findIndex(u => u.id === unidad.id)
+      );
+
+      console.log('✅ Unidades con zona encontradas:', unidadesUnicas);
+
+      return { data: unidadesUnicas as UnidadServicio[], error: null, count: unidadesUnicas.length };
     } catch (error) {
-      console.error('Error al obtener unidades por contrato:', error);
+      console.error('❌ Error en getUnidadesPorContrato:', error);
       return { data: null, error, count: null };
     }
   }

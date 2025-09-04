@@ -25,7 +25,6 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  BarChart3,
   Target
 } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -74,52 +73,6 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
   // Estado para las zonas cargadas
   const [zonasContrato, setZonasContrato] = useState<{[key: number]: any[]}>({});
 
-  // Estado para estadísticas calculadas
-  const [estadisticas, setEstadisticas] = useState({
-    total: 0,
-    abiertos: 0,
-    enProduccion: 0,
-    finalizados: 0,
-    inactivos: 0,
-    valorTotal: 0,
-    valorPromedio: 0,
-    totalPPL: 0,
-    totalServicios: 0,
-    totalRaciones: 0,
-    porcentajeActivos: 0
-  });
-
-  // Función para calcular estadísticas
-  const calcularEstadisticas = (contratos: ContratoView[]) => {
-    const total = contratos.length;
-    const abiertos = contratos.filter(c => c.Estado === 'ABIERTO').length;
-    const enProduccion = contratos.filter(c => c.Estado === 'EN PRODUCCION').length;
-    const finalizados = contratos.filter(c => c.Estado === 'FINALIZADO').length;
-    const inactivos = contratos.filter(c => c.Estado === 'INACTIVO').length;
-    
-    const valorTotal = contratos.reduce((sum, c) => sum + (c['Total:$:colspan:[Valores]'] || 0), 0);
-    const valorPromedio = total > 0 ? valorTotal / total : 0;
-    const totalPPL = contratos.reduce((sum, c) => sum + (c['PPL:colspan:[Cantidades x Dia]'] || 0), 0);
-    const totalServicios = contratos.reduce((sum, c) => sum + (c['Servicios:colspan:[Cantidades x Dia]'] || 0), 0);
-    const totalRaciones = contratos.reduce((sum, c) => sum + (c['Raciones:colspan:[Cantidades x Dia]'] || 0), 0);
-    
-    const contratosActivos = abiertos + enProduccion;
-    const porcentajeActivos = total > 0 ? (contratosActivos / total) * 100 : 0;
-
-    setEstadisticas({
-      total,
-      abiertos,
-      enProduccion,
-      finalizados,
-      inactivos,
-      valorTotal,
-      valorPromedio,
-      totalPPL,
-      totalServicios,
-      totalRaciones,
-      porcentajeActivos
-    });
-  };
 
   // Función para expandir/contraer filas
   const toggleRowExpansion = async (contratoId: number) => {
@@ -256,7 +209,6 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
         const contractData = response.data || [];
         setContratos(contractData);
         setFilteredContratos(contractData);
-        calcularEstadisticas(contractData);
       }
     } catch (err) {
       setError('Error inesperado al cargar los contratos');
@@ -762,188 +714,6 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
         )}
       </div>
 
-      {/* Estadísticas detalladas debajo del listado */}
-      <div className="mt-8">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-cyan-600" />
-            Estadísticas Detalladas de Contratos
-          </h3>
-          <p className="text-sm text-gray-600">Resumen completo de todos los contratos registrados en el sistema</p>
-        </div>
-
-        {/* Estadísticas principales */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {/* Tarjeta Principal - Total Contratos */}
-          <Card className="border-l-4 border-l-cyan-500 shadow-md hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Contratos</p>
-                  <p className="text-3xl font-bold text-cyan-600">{estadisticas.total}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {estadisticas.porcentajeActivos.toFixed(1)}% activos
-                  </p>
-                </div>
-                <div className="relative">
-                  <FileText className="w-10 h-10 text-cyan-500" />
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-100 rounded-full flex items-center justify-center">
-                    <span className="text-xs font-bold text-cyan-600">{estadisticas.total}</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Estados de Contratos */}
-          <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="w-full">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Estados</p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-green-700">En Producción</span>
-                      <span className="text-sm font-bold text-green-600">{estadisticas.enProduccion}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-blue-700">Abiertos</span>
-                      <span className="text-sm font-bold text-blue-600">{estadisticas.abiertos}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-700">Finalizados</span>
-                      <span className="text-sm font-bold text-gray-600">{estadisticas.finalizados}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-red-700">Inactivos</span>
-                      <span className="text-sm font-bold text-red-600">{estadisticas.inactivos}</span>
-                    </div>
-                  </div>
-                </div>
-                <BarChart3 className="w-8 h-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Valores Monetarios */}
-          <Card className="border-l-4 border-l-purple-500 shadow-md hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Valor Total</p>
-                  <p className="text-xl font-bold text-purple-600">
-                    {formatCurrency(estadisticas.valorTotal)}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Promedio: {formatCurrency(estadisticas.valorPromedio)}
-                  </p>
-                </div>
-                <div className="relative">
-                  <DollarSign className="w-10 h-10 text-purple-500" />
-                  <TrendingUp className="w-4 h-4 text-purple-600 absolute -bottom-1 -right-1" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Capacidades y Servicios */}
-          <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="w-full">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Capacidades</p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-orange-700 flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        Total PPL
-                      </span>
-                      <span className="text-sm font-bold text-orange-600">
-                        {estadisticas.totalPPL.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-orange-700 flex items-center gap-1">
-                        <Target className="w-3 h-3" />
-                        Servicios
-                      </span>
-                      <span className="text-sm font-bold text-orange-600">
-                        {estadisticas.totalServicios.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-orange-700 flex items-center gap-1">
-                        <Building className="w-3 h-3" />
-                        Raciones
-                      </span>
-                      <span className="text-sm font-bold text-orange-600">
-                        {estadisticas.totalRaciones.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sección de estadísticas adicionales */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-700">Contratos Activos</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {estadisticas.abiertos + estadisticas.enProduccion}
-                  </p>
-                  <p className="text-xs text-green-600">
-                    {estadisticas.porcentajeActivos.toFixed(1)}% del total
-                  </p>
-                </div>
-                <div className="relative">
-                  <CheckCircle className="w-10 h-10 text-green-500" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-700">Valor por PPL</p>
-                  <p className="text-xl font-bold text-blue-600">
-                    {estadisticas.totalPPL > 0 ? formatCurrency(estadisticas.valorTotal / estadisticas.totalPPL) : formatCurrency(0)}
-                  </p>
-                  <p className="text-xs text-blue-600">Costo unitario promedio</p>
-                </div>
-                <div className="relative">
-                  <Users className="w-10 h-10 text-blue-500" />
-                  <DollarSign className="w-4 h-4 text-blue-600 absolute -bottom-1 -right-1" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-r from-indigo-50 to-indigo-100 border-indigo-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-indigo-700">Eficiencia</p>
-                  <p className="text-xl font-bold text-indigo-600">
-                    {estadisticas.totalServicios > 0 ? (estadisticas.totalRaciones / estadisticas.totalServicios).toFixed(1) : '0.0'}
-                  </p>
-                  <p className="text-xs text-indigo-600">Raciones por servicio</p>
-                </div>
-                <div className="relative">
-                  <Target className="w-10 h-10 text-indigo-500" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 };

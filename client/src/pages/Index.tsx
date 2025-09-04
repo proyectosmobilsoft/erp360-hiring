@@ -1,76 +1,75 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/services/supabaseClient';
-import { Users, Shield, Key, Activity, TrendingUp, UserCheck, UserX, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { ContratosService } from '@/services/contratosService';
+import { Activity, BarChart3, FileText, DollarSign, Target, Building, CheckCircle, Users, TrendingUp } from 'lucide-react';
 
 interface DashboardStats {
-  totalUsuarios: number;
-  usuariosActivos: number;
-  usuariosInactivos: number;
-  totalRoles: number;
-  totalPermisos: number;
-  distribucionUsuarios: Array<{ tipo: string; cantidad: number }>;
-  distribucionRoles: Array<{ tipo: string; cantidad: number }>;
+  // Estadísticas de contratos
+  totalContratos: number;
+  contratosAbiertos: number;
+  contratosEnProduccion: number;
+  contratosFinalizados: number;
+  contratosInactivos: number;
+  valorTotalContratos: number;
+  valorPromedioContratos: number;
+  totalPPL: number;
+  totalServicios: number;
+  totalRaciones: number;
+  porcentajeContratosActivos: number;
 }
 
 const COLORS = ['#0891b2', '#0d9488', '#059669', '#7c3aed', '#dc2626'];
+
+// Función para formatear moneda
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
 
 const Index = () => {
   const { data: stats, isLoading, error } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       try {
-        // Obtener estadísticas de usuarios
-        const { data: usuarios, error: usuariosError } = await supabase
-          .from('gen_usuarios')
-          .select('id, activo');
+        // Obtener estadísticas de contratos
+        const response = await ContratosService.getContratos();
+        const contratos = response.data || [];
 
-        if (usuariosError) throw usuariosError;
-
-        // Obtener estadísticas de roles
-        const { data: roles, error: rolesError } = await supabase
-          .from('gen_roles')
-          .select('id, nombre');
-
-        if (rolesError) throw rolesError;
-
-        // Obtener estadísticas de permisos
-        const { data: permisos, error: permisosError } = await supabase
-          .from('gen_modulo_permisos')
-          .select('id');
-
-        if (permisosError) throw permisosError;
-
-        const totalUsuarios = usuarios?.length || 0;
-        const usuariosActivos = usuarios?.filter(u => u.activo).length || 0;
-        const usuariosInactivos = totalUsuarios - usuariosActivos;
-        const totalRoles = roles?.length || 0;
-        const totalPermisos = permisos?.length || 0;
-
-        // Distribución de usuarios por estado
-        const distribucionUsuarios = [
-          { tipo: 'Activos', cantidad: usuariosActivos },
-          { tipo: 'Inactivos', cantidad: usuariosInactivos }
-        ];
-
-        // Distribución de roles (top 5)
-        const distribucionRoles = roles?.slice(0, 5).map(rol => ({
-          tipo: rol.nombre,
-          cantidad: usuarios?.filter(u => u.activo).length || 0 // Simplificado por ahora
-        })) || [];
+        // Calcular estadísticas de contratos
+        const totalContratos = contratos.length;
+        const contratosAbiertos = contratos.filter(c => c.Estado === 'ABIERTO').length;
+        const contratosEnProduccion = contratos.filter(c => c.Estado === 'EN PRODUCCION').length;
+        const contratosFinalizados = contratos.filter(c => c.Estado === 'FINALIZADO').length;
+        const contratosInactivos = contratos.filter(c => c.Estado === 'INACTIVO').length;
+        
+        const valorTotalContratos = contratos.reduce((sum, c) => sum + (c['Total:$:colspan:[Valores]'] || 0), 0);
+        const valorPromedioContratos = totalContratos > 0 ? valorTotalContratos / totalContratos : 0;
+        const totalPPL = contratos.reduce((sum, c) => sum + (c['PPL:colspan:[Cantidades x Dia]'] || 0), 0);
+        const totalServicios = contratos.reduce((sum, c) => sum + (c['Servicios:colspan:[Cantidades x Dia]'] || 0), 0);
+        const totalRaciones = contratos.reduce((sum, c) => sum + (c['Raciones:colspan:[Cantidades x Dia]'] || 0), 0);
+        
+        const contratosActivos = contratosAbiertos + contratosEnProduccion;
+        const porcentajeContratosActivos = totalContratos > 0 ? (contratosActivos / totalContratos) * 100 : 0;
 
         return {
-          totalUsuarios,
-          usuariosActivos,
-          usuariosInactivos,
-          totalRoles,
-          totalPermisos,
-          distribucionUsuarios,
-          distribucionRoles
+          // Estadísticas de contratos
+          totalContratos,
+          contratosAbiertos,
+          contratosEnProduccion,
+          contratosFinalizados,
+          contratosInactivos,
+          valorTotalContratos,
+          valorPromedioContratos,
+          totalPPL,
+          totalServicios,
+          totalRaciones,
+          porcentajeContratosActivos
         };
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
@@ -113,269 +112,187 @@ const Index = () => {
         </h1>
       </div>
 
-      {/* Tarjetas de Estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Card className="border border-cyan-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
-                <Users className="w-5 h-5 text-blue-600" />
-              </div>
-              Total de Usuarios
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600">{stats?.totalUsuarios || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">Usuarios registrados en el sistema</p>
-          </CardContent>
-        </Card>
 
-        <Card className="border border-cyan-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center">
-                <UserCheck className="w-5 h-5 text-green-600" />
-              </div>
-              Usuarios Activos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">{stats?.usuariosActivos || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">Usuarios con acceso activo</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-cyan-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <div className="w-8 h-8 bg-orange-100 rounded flex items-center justify-center">
-                <Shield className="w-5 h-5 text-orange-600" />
-              </div>
-              Total de Roles
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-orange-600">{stats?.totalRoles || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">Roles de seguridad definidos</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-cyan-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <div className="w-8 h-8 bg-purple-100 rounded flex items-center justify-center">
-                <Key className="w-5 h-5 text-purple-600" />
-              </div>
-              Total de Permisos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-purple-600">{stats?.totalPermisos || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">Permisos del sistema</p>
-          </CardContent>
-        </Card>
+      {/* Estadísticas de Contratos */}
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-cyan-600" />
+          Estadísticas Detalladas de Contratos
+        </h3>
+        <p className="text-sm text-gray-600">Resumen completo de todos los contratos registrados en el sistema</p>
       </div>
 
-      {/* Pestañas de Análisis */}
-      <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-cyan-100/60 p-1 rounded-lg">
-          <TabsTrigger
-            value="general"
-            className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-md transition-all duration-300"
-          >
-            Vista General
-          </TabsTrigger>
-          <TabsTrigger
-            value="usuarios"
-            className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-md transition-all duration-300"
-          >
-            Análisis de Usuarios
-          </TabsTrigger>
-          <TabsTrigger
-            value="seguridad"
-            className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-md transition-all duration-300"
-          >
-            Estado de Seguridad
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Pestaña Vista General */}
-        <TabsContent value="general" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Gráfico de Distribución de Usuarios */}
-            <Card className="border border-cyan-200 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-gray-700">
-                  <div className="w-6 h-6 bg-cyan-100 rounded flex items-center justify-center">
-                    <PieChartIcon className="w-4 h-4 text-cyan-600" />
+      {/* Estadísticas principales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {/* Tarjeta Principal - Total Contratos */}
+            <Card className="border-l-4 border-l-cyan-500 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Contratos</p>
+                    <p className="text-3xl font-bold text-cyan-600">{stats?.totalContratos || 0}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {stats?.porcentajeContratosActivos.toFixed(1) || 0}% activos
+                    </p>
                   </div>
-                  Distribución de Usuarios
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={stats?.distribucionUsuarios || []}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ tipo, porcentaje }) => `${tipo}: ${porcentaje}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="cantidad"
-                    >
-                      {stats?.distribucionUsuarios.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Resumen del Sistema */}
-            <Card className="border border-cyan-200 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-gray-700">
-                  <div className="w-6 h-6 bg-cyan-100 rounded flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4 text-cyan-600" />
-                  </div>
-                  Resumen del Sistema
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium text-gray-700">Estado General</span>
-                  <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                    Operativo
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Usuarios Activos</span>
-                    <span className="text-sm font-semibold text-green-600">
-                      {stats?.usuariosActivos || 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Usuarios Inactivos</span>
-                    <span className="text-sm font-semibold text-red-600">
-                      {stats?.usuariosInactivos || 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Roles del Sistema</span>
-                    <span className="text-sm font-semibold text-blue-600">
-                      {stats?.totalRoles || 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Permisos Totales</span>
-                    <span className="text-sm font-semibold text-purple-600">
-                      {stats?.totalPermisos || 0}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Pestaña Análisis de Usuarios */}
-        <TabsContent value="usuarios" className="mt-6">
-          <Card className="border border-cyan-200 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-gray-700">
-                <div className="w-6 h-6 bg-cyan-100 rounded flex items-center justify-center">
-                  <BarChart3 className="w-4 h-4 text-cyan-600" />
-                </div>
-                Estadísticas de Usuarios
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart
-                  data={stats?.distribucionUsuarios || []}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="tipo" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="cantidad" fill="#0891b2" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Pestaña Estado de Seguridad */}
-        <TabsContent value="seguridad" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Estado de Usuarios */}
-            <Card className="border border-cyan-200 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-gray-700">
-                  <div className="w-6 h-6 bg-cyan-100 rounded flex items-center justify-center">
-                    <Users className="w-4 h-4 text-cyan-600" />
-                  </div>
-                  Estado de Usuarios
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                    <div className="flex items-center gap-2">
-                      <UserCheck className="w-5 h-5 text-green-600" />
-                      <span className="text-sm font-medium text-green-800">Usuarios Activos</span>
+                  <div className="relative">
+                    <FileText className="w-10 h-10 text-cyan-500" />
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-100 rounded-full flex items-center justify-center">
+                      <span className="text-xs font-bold text-cyan-600">{stats?.totalContratos || 0}</span>
                     </div>
-                    <span className="text-2xl font-bold text-green-600">{stats?.usuariosActivos || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                    <div className="flex items-center gap-2">
-                      <UserX className="w-5 h-5 text-red-600" />
-                      <span className="text-sm font-medium text-red-800">Usuarios Inactivos</span>
-                    </div>
-                    <span className="text-2xl font-bold text-red-600">{stats?.usuariosInactivos || 0}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Estado de Roles y Permisos */}
-            <Card className="border border-cyan-200 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-gray-700">
-                  <div className="w-6 h-6 bg-cyan-100 rounded flex items-center justify-center">
-                    <Shield className="w-4 h-4 text-cyan-600" />
-                  </div>
-                  Roles y Permisos
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-center gap-2">
-                      <Shield className="w-5 h-5 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-800">Roles del Sistema</span>
+            {/* Estados de Contratos */}
+            <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-full">
+                    <p className="text-sm font-medium text-gray-600 mb-2">Estados</p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-green-700">En Producción</span>
+                        <span className="text-sm font-bold text-green-600">{stats?.contratosEnProduccion || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-blue-700">Abiertos</span>
+                        <span className="text-sm font-bold text-blue-600">{stats?.contratosAbiertos || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-700">Finalizados</span>
+                        <span className="text-sm font-bold text-gray-600">{stats?.contratosFinalizados || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-red-700">Inactivos</span>
+                        <span className="text-sm font-bold text-red-600">{stats?.contratosInactivos || 0}</span>
+                      </div>
                     </div>
-                    <span className="text-2xl font-bold text-blue-600">{stats?.totalRoles || 0}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
-                    <div className="flex items-center gap-2">
-                      <Key className="w-5 h-5 text-purple-600" />
-                      <span className="text-sm font-medium text-purple-800">Permisos Totales</span>
+                  <BarChart3 className="w-8 h-8 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Valores Monetarios */}
+            <Card className="border-l-4 border-l-purple-500 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Valor Total</p>
+                    <p className="text-xl font-bold text-purple-600">
+                      {formatCurrency(stats?.valorTotalContratos || 0)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Promedio: {formatCurrency(stats?.valorPromedioContratos || 0)}
+                    </p>
+                  </div>
+                  <div className="relative">
+                    <DollarSign className="w-10 h-10 text-purple-500" />
+                    <TrendingUp className="w-4 h-4 text-purple-600 absolute -bottom-1 -right-1" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Capacidades y Servicios */}
+            <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-full">
+                    <p className="text-sm font-medium text-gray-600 mb-2">Capacidades</p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-orange-700 flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          Total PPL
+                        </span>
+                        <span className="text-sm font-bold text-orange-600">
+                          {(stats?.totalPPL || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-orange-700 flex items-center gap-1">
+                          <Target className="w-3 h-3" />
+                          Servicios
+                        </span>
+                        <span className="text-sm font-bold text-orange-600">
+                          {(stats?.totalServicios || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-orange-700 flex items-center gap-1">
+                          <Building className="w-3 h-3" />
+                          Raciones
+                        </span>
+                        <span className="text-sm font-bold text-orange-600">
+                          {(stats?.totalRaciones || 0).toLocaleString()}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-2xl font-bold text-purple-600">{stats?.totalPermisos || 0}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          {/* Sección de estadísticas adicionales */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-700">Contratos Activos</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {(stats?.contratosAbiertos || 0) + (stats?.contratosEnProduccion || 0)}
+                    </p>
+                    <p className="text-xs text-green-600">
+                      {stats?.porcentajeContratosActivos.toFixed(1) || 0}% del total
+                    </p>
+                  </div>
+                  <div className="relative">
+                    <CheckCircle className="w-10 h-10 text-green-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-700">Valor por PPL</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {(stats?.totalPPL || 0) > 0 ? formatCurrency((stats?.valorTotalContratos || 0) / (stats?.totalPPL || 1)) : formatCurrency(0)}
+                    </p>
+                    <p className="text-xs text-blue-600">Costo unitario promedio</p>
+                  </div>
+                  <div className="relative">
+                    <Users className="w-10 h-10 text-blue-500" />
+                    <DollarSign className="w-4 h-4 text-blue-600 absolute -bottom-1 -right-1" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-r from-indigo-50 to-indigo-100 border-indigo-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-indigo-700">Eficiencia</p>
+                    <p className="text-xl font-bold text-indigo-600">
+                      {(stats?.totalServicios || 0) > 0 ? ((stats?.totalRaciones || 0) / (stats?.totalServicios || 1)).toFixed(1) : '0.0'}
+                    </p>
+                    <p className="text-xs text-indigo-600">Raciones por servicio</p>
+                  </div>
+                  <div className="relative">
+                    <Target className="w-10 h-10 text-indigo-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
     </div>
   );
 };
