@@ -302,6 +302,13 @@ const AsignarMenusPage: React.FC = () => {
   const [filterText, setFilterText] = useState('');
   const [asignacionesUnidades, setAsignacionesUnidades] = useState<AsignacionUnidad[]>([]);
 
+  // Función para verificar si una receta está asignada a alguna unidad
+  const isRecetaAsignada = (recetaId: number): boolean => {
+    return asignacionesUnidades.some(unidad => 
+      unidad.recetas.some(receta => receta.id_producto === recetaId)
+    );
+  };
+
   // Función para transformar recetas agrupadas a datos de tabla
   const transformRecetasToTableData = (recetas: RecetaAgrupada[]): GroupedTableData[] => {
     return recetas.map((receta, index) => ({
@@ -448,6 +455,28 @@ const AsignarMenusPage: React.FC = () => {
     cargarRecetasAgrupadas();
   }, []);
 
+  // Sincronizar recetas seleccionadas con las asignaciones existentes
+  useEffect(() => {
+    if (asignacionesUnidades.length > 0 && recetasAgrupadas.length > 0) {
+      const recetasAsignadas = new Set<string>();
+      
+      // Recopilar todas las recetas asignadas
+      asignacionesUnidades.forEach(unidad => {
+        unidad.recetas.forEach(receta => {
+          // Buscar el índice de la receta en recetasAgrupadas
+          const recetaIndex = recetasAgrupadas.findIndex(r => r.id_producto === receta.id_producto);
+          if (recetaIndex !== -1) {
+            const recetaId = `${receta.id_producto}-${receta.tipo_zona}-${receta.nombre_servicio}-${recetaIndex}`;
+            recetasAsignadas.add(recetaId);
+          }
+        });
+      });
+      
+      // Actualizar el estado de recetas seleccionadas
+      setSelectedRecetas(recetasAsignadas);
+    }
+  }, [asignacionesUnidades, recetasAgrupadas]);
+
   // Función para manejar la selección de recetas con validación de tipo de zona
   const handleRecetaSelect = (receta: GroupedTableData, selected: boolean) => {
     setSelectedRecetas(prev => {
@@ -457,7 +486,7 @@ const AsignarMenusPage: React.FC = () => {
         // Verificar si ya hay recetas seleccionadas de otros tipos de zona
         const recetasActuales = Array.from(prev).map(id => {
           return recetasAgrupadas.find(r =>
-            `${r.id}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.indexOf(r)}` === id
+            `${r.id_producto}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.indexOf(r)}` === id
           );
         }).filter(Boolean);
 
