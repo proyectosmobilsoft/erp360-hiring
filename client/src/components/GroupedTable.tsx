@@ -69,7 +69,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
     }
 
     const groupFields = Array.isArray(groupBy) ? groupBy : [groupBy];
-    
+
     // Función recursiva para crear grupos anidados
     const createGroups = (items: GroupedTableData[], level: number): GroupData[] => {
       if (level >= groupFields.length) {
@@ -87,12 +87,12 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
       }, {} as Record<string, GroupedTableData[]>);
 
       return Object.entries(grouped).map(([grupo, groupItems]) => {
-        const subGroups = level < groupFields.length - 1 
+        const subGroups = level < groupFields.length - 1
           ? createGroups(groupItems, level + 1)
           : undefined;
 
         // Calcular el total real de items en este nivel
-        const totalItems = subGroups 
+        const totalItems = subGroups
           ? subGroups.reduce((sum, subGroup) => sum + subGroup.totalItems, 0)
           : groupItems.length;
 
@@ -140,7 +140,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
   // Función para obtener todos los items de un grupo (incluyendo subgrupos)
   const getAllItemsFromGroup = (group: GroupData): GroupedTableData[] => {
     let items: GroupedTableData[] = [];
-    
+
     if (group.subGroups && group.subGroups.length > 0) {
       // Si tiene subgrupos, obtener items de todos los subgrupos
       group.subGroups.forEach(subGroup => {
@@ -150,7 +150,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
       // Si no tiene subgrupos, usar los items directos
       items = group.items;
     }
-    
+
     return items;
   };
 
@@ -208,60 +208,58 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
 
     return (
       <React.Fragment key={groupKey}>
-                 {/* Fila del grupo */}
-         <TableRow className={`${currentStyle.bg} ${currentStyle.hover} transition-all duration-200`}>
-           <TableCell colSpan={columns.length + (showCheckboxes ? 1 : 0)} className="py-1 px-2">
-             <div className="flex items-center gap-2">
-               {showCheckboxes && (
-                 <div className="w-4 flex-shrink-0">
-                   <input
-                     type="checkbox"
-                     checked={areAllItemsSelected(group)}
-                     ref={(input) => {
-                       if (input) {
-                         input.indeterminate = areSomeItemsSelected(group) && !areAllItemsSelected(group);
-                       }
-                     }}
-                     onChange={(e) => {
-                       e.stopPropagation();
-                       const allItems = getAllItemsFromGroup(group);
-                       allItems.forEach(item => {
-                         handleItemSelect(item, e.target.checked);
-                       });
-                     }}
-                     className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
-                   />
-                 </div>
-               )}
-               <div 
-                 className={`flex items-center gap-2 cursor-pointer hover:bg-white/50 p-1 rounded transition-all duration-200 group flex-1 ${
-                   level > 0 ? 'ml-4' : ''
-                 } ${currentStyle.border}`}
-                 onClick={() => toggleGroup(groupKey)}
-               >
-                 <div className="flex items-center gap-1 flex-1">
-                   <div className="transition-transform duration-300 ease-in-out group-hover:scale-110">
-                     {isExpanded ? (
-                       <ChevronDown className={`w-3 h-3 ${currentStyle.icon}`} />
-                     ) : (
-                       <ChevronRight className={`w-3 h-3 ${currentStyle.icon}`} />
-                     )}
-                   </div>
-                   <div className="flex items-center gap-1 flex-1">
-                     {groupIcons[group.grupo] && (
-                       <div className="flex items-center">
-                         {groupIcons[group.grupo]}
-                       </div>
-                     )}
-                     <span className={`font-semibold ${currentStyle.text} group-hover:text-cyan-700 transition-colors duration-200 text-xs flex-1 text-left`}>
-                       {group.grupo} - Total ({group.totalItems})
-                     </span>
-                   </div>
-                 </div>
-               </div>
-             </div>
-           </TableCell>
-         </TableRow>
+        {/* Fila del grupo */}
+        <TableRow className={`${currentStyle.bg} ${currentStyle.hover} transition-all duration-200`}>
+          <TableCell colSpan={columns.length + (showCheckboxes ? 1 : 0)} className="py-1 px-2">
+            <div className="flex items-center gap-2">
+              {showCheckboxes && (
+                <div className="w-4 flex-shrink-0" style={{ marginLeft: `${level * 16}px` }}>
+                  <input
+                    type="checkbox"
+                    checked={areAllItemsSelected(group)}
+                    ref={(input) => {
+                      if (input) {
+                        input.indeterminate = areSomeItemsSelected(group) && !areAllItemsSelected(group);
+                      }
+                    }}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      const allItems = getAllItemsFromGroup(group);
+                      allItems.forEach(item => {
+                        handleItemSelect(item, e.target.checked);
+                      });
+                    }}
+                    className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
+                  />
+                </div>
+              )}
+              <div
+                className={`flex items-center gap-2 cursor-pointer hover:bg-white/50 p-1 rounded transition-all duration-200 group flex-1 ${currentStyle.border}`}
+                onClick={() => toggleGroup(groupKey)}
+              >
+                <div className="flex items-center gap-1 flex-1">
+                  <div className="transition-transform duration-300 ease-in-out group-hover:scale-110">
+                    {isExpanded ? (
+                      <ChevronDown className={`w-3 h-3 ${currentStyle.icon}`} />
+                    ) : (
+                      <ChevronRight className={`w-3 h-3 ${currentStyle.icon}`} />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 flex-1">
+                    {groupIcons[group.grupo] && (
+                      <div className="flex items-center">
+                        {groupIcons[group.grupo]}
+                      </div>
+                    )}
+                    <span className={`font-semibold ${currentStyle.text} group-hover:text-cyan-700 transition-colors duration-200 text-xs flex-1 text-left`}>
+                      {group.grupo} - Total ({group.totalItems})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TableCell>
+        </TableRow>
 
         {/* Subgrupos o items - Solo se muestran cuando está expandido */}
         {isExpanded && (
@@ -272,43 +270,44 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
             ) : (
               // Renderizar items del grupo
               group.items.map((item, index) => (
-                                 <TableRow 
-                   key={`${groupKey}-${item.id}`} 
-                   className={`hover:bg-cyan-50/50 transition-colors duration-200 border-l-2 border-l-transparent hover:border-l-cyan-300 cursor-pointer ${
-                     isItemSelected(item) ? 'bg-cyan-50' : ''
-                   }`}
-                   style={{
-                     animationDelay: `${index * 100}ms`,
-                     animation: 'slideInFromTop 0.3s ease-out forwards'
-                   }}
-                   onClick={() => {
-                     if (showCheckboxes) {
-                       handleItemSelect(item, !isItemSelected(item));
-                     }
-                     if (onItemClick) {
-                       onItemClick(item);
-                     }
-                   }}
-                 >
-                   {showCheckboxes && (
-                     <TableCell className="py-1 px-2 text-xs w-4">
-                       <input
-                         type="checkbox"
-                         checked={isItemSelected(item)}
-                         onChange={(e) => {
-                           e.stopPropagation();
-                           handleItemSelect(item, e.target.checked);
-                         }}
-                         className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
-                       />
-                     </TableCell>
-                   )}
-                   {columns.map((column) => (
-                     <TableCell key={column.key} className="py-1 px-2 text-xs text-left">
-                       {renderCellContent(column, item)}
-                     </TableCell>
-                   ))}
-                 </TableRow>
+                <TableRow
+                  key={`${groupKey}-${item.id}`}
+                  className={`hover:bg-cyan-50/50 transition-colors duration-200 border-l-2 border-l-transparent hover:border-l-cyan-300 cursor-pointer ${isItemSelected(item) ? 'bg-cyan-50' : ''
+                    }`}
+                  style={{
+                    animationDelay: `${index * 100}ms`,
+                    animation: 'slideInFromTop 0.3s ease-out forwards'
+                  }}
+                  onClick={() => {
+                    if (showCheckboxes) {
+                      handleItemSelect(item, !isItemSelected(item));
+                    }
+                    if (onItemClick) {
+                      onItemClick(item);
+                    }
+                  }}
+                >
+                  {showCheckboxes && (
+                    <TableCell className="py-1 px-2 text-xs w-4">
+                      <div style={{ marginLeft: `${(level + 1) * 16}px` }}>
+                        <input
+                          type="checkbox"
+                          checked={isItemSelected(item)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleItemSelect(item, e.target.checked);
+                          }}
+                          className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
+                        />
+                      </div>
+                    </TableCell>
+                  )}
+                  {columns.map((column) => (
+                    <TableCell key={column.key} className="py-1 px-2 text-xs text-left">
+                      {renderCellContent(column, item)}
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))
             )}
           </>
@@ -329,38 +328,38 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
           )}
         </div>
       )}
-      
+
       <div className="rounded-md border">
         <Table>
           <TableHeader className="bg-cyan-50">
             <TableRow>
-                             {showCheckboxes && (
-                 <TableHead className="font-semibold text-gray-700 text-xs py-1 px-2 w-4">
-                   <input
-                     type="checkbox"
-                     checked={data.length > 0 && data.every(item => selectedItems.has(item.id))}
-                     ref={(input) => {
-                       if (input) {
-                         const someSelected = data.some(item => selectedItems.has(item.id));
-                         const allSelected = data.every(item => selectedItems.has(item.id));
-                         input.indeterminate = someSelected && !allSelected;
-                       }
-                     }}
-                     onChange={(e) => {
-                       // Seleccionar/deseleccionar todos
-                       data.forEach(item => {
-                         handleItemSelect(item, e.target.checked);
-                       });
-                     }}
-                     className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
-                   />
-                 </TableHead>
-               )}
-                             {columns.map((column) => (
-                 <TableHead key={column.key} className="font-semibold text-gray-700 text-xs py-1 px-2 text-left">
-                   {column.label}
-                 </TableHead>
-               ))}
+              {showCheckboxes && (
+                <TableHead className="font-semibold text-gray-700 text-xs py-1 px-2 w-4">
+                  <input
+                    type="checkbox"
+                    checked={data.length > 0 && data.every(item => selectedItems.has(item.id))}
+                    ref={(input) => {
+                      if (input) {
+                        const someSelected = data.some(item => selectedItems.has(item.id));
+                        const allSelected = data.every(item => selectedItems.has(item.id));
+                        input.indeterminate = someSelected && !allSelected;
+                      }
+                    }}
+                    onChange={(e) => {
+                      // Seleccionar/deseleccionar todos
+                      data.forEach(item => {
+                        handleItemSelect(item, e.target.checked);
+                      });
+                    }}
+                    className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
+                  />
+                </TableHead>
+              )}
+              {columns.map((column) => (
+                <TableHead key={column.key} className="font-semibold text-gray-700 text-xs py-1 px-2 text-left">
+                  {column.label}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>

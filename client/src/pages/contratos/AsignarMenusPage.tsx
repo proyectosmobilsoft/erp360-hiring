@@ -309,6 +309,30 @@ const AsignarMenusPage: React.FC = () => {
     }));
   };
 
+  // Función para filtrar recetas basándose en las selecciones actuales
+  const getRecetasFiltradas = (): GroupedTableData[] => {
+    const recetasTransformadas = transformRecetasToTableData(recetasAgrupadas);
+    
+    // Si no hay recetas seleccionadas, mostrar todas
+    if (selectedRecetas.size === 0) {
+      return recetasTransformadas;
+    }
+    
+    // Obtener el tipo de zona de las recetas seleccionadas
+    const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
+      return recetasTransformadas.find(r => r.id === id);
+    }).filter(Boolean);
+    
+    const tipoZonaSeleccionado = recetasSeleccionadas[0]?.tipo_zona;
+    
+    // Si hay un tipo de zona seleccionado, mostrar solo las recetas de ese tipo
+    if (tipoZonaSeleccionado) {
+      return recetasTransformadas.filter(receta => receta.tipo_zona === tipoZonaSeleccionado);
+    }
+    
+    return recetasTransformadas;
+  };
+
   // Iconos para los tipos de menú
   const menuTypeIcons = {
     'DESAYUNO': <Sun className="w-3 h-3 text-yellow-600" />,
@@ -416,15 +440,37 @@ const AsignarMenusPage: React.FC = () => {
     cargarRecetasAgrupadas();
   }, []);
 
-  // Función para manejar la selección de recetas
+  // Función para manejar la selección de recetas con validación de tipo de zona
   const handleRecetaSelect = (receta: GroupedTableData, selected: boolean) => {
     setSelectedRecetas(prev => {
       const newSet = new Set(prev);
+      
       if (selected) {
+        // Verificar si ya hay recetas seleccionadas de otros tipos de zona
+        const recetasActuales = Array.from(prev).map(id => {
+          return recetasAgrupadas.find(r => 
+            `${r.id}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.indexOf(r)}` === id
+          );
+        }).filter(Boolean);
+        
+        const tiposZonaSeleccionados = new Set(recetasActuales.map(r => r?.tipo_zona));
+        const tipoZonaActual = receta.tipo_zona;
+        
+        // Si hay recetas de otros tipos de zona seleccionadas, no permitir seleccionar
+        if (tiposZonaSeleccionados.size > 0 && !tiposZonaSeleccionados.has(tipoZonaActual)) {
+          toast({
+            title: "Validación de zona",
+            description: `Solo puedes seleccionar recetas del tipo de zona "${tipoZonaActual}". Deselecciona primero las recetas de otros tipos de zona.`,
+            variant: "destructive",
+          });
+          return prev; // No hacer cambios
+        }
+        
         newSet.add(receta.id.toString());
       } else {
         newSet.delete(receta.id.toString());
       }
+      
       return newSet;
     });
   };
@@ -536,16 +582,39 @@ const AsignarMenusPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Buscar productos..."
-                    value={filterText}
-                    onChange={(e) => setFilterText(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+                                 <div className="relative">
+                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                   <Input
+                     type="text"
+                     placeholder="Buscar productos..."
+                     value={filterText}
+                     onChange={(e) => setFilterText(e.target.value)}
+                     className="pl-10"
+                   />
+                 </div>
+                 
+                 {/* Indicador de tipo de zona seleccionado */}
+                 {selectedRecetas.size > 0 && (() => {
+                   const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
+                     return transformRecetasToTableData(recetasAgrupadas).find(r => r.id === id);
+                   }).filter(Boolean);
+                   
+                   const tipoZonaSeleccionado = recetasSeleccionadas[0]?.tipo_zona;
+                   
+                   return (
+                     <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                       <div className="flex items-center gap-2">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                         <span className="text-sm font-medium text-blue-800">
+                           Tipo de zona seleccionado: <strong>{tipoZonaSeleccionado}</strong>
+                         </span>
+                       </div>
+                       <p className="text-xs text-blue-600 mt-1">
+                         Solo se muestran recetas de este tipo de zona. Deselecciona todas para ver todas las opciones.
+                       </p>
+                     </div>
+                   );
+                 })()}
               </div>
 
               <div className="max-h-96 overflow-y-auto">
@@ -574,39 +643,49 @@ const AsignarMenusPage: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="p-4">
-                    <GroupedTable
-                      data={transformRecetasToTableData(recetasAgrupadas)}
-                      groupBy={['tipo_zona', 'nombre_servicio']}
-                      columns={[
-                        {
-                          key: 'nombre',
-                          label: 'Nombre de la Receta'
-                        },
-                        {
-                          key: 'codigo',
-                          label: 'Código'
-                        }
-                      ]}
-                      title=""
-                      showTitle={false}
-                      emptyMessage="No hay recetas disponibles"
-                      defaultExpandedGroups={[]}
-                      showCheckboxes={true}
-                      selectedItems={selectedRecetas}
-                      onItemSelect={handleRecetaSelect}
-                      groupIcons={{}}
-                      onItemClick={(item) => {
-                        // Aquí puedes manejar la selección de recetas
-                        console.log('Receta seleccionada:', item);
-                      }}
-                    />
-                  </div>
+                                     <div className="p-4">
+                     <GroupedTable
+                       data={getRecetasFiltradas()}
+                       groupBy={['tipo_zona', 'nombre_servicio']}
+                       columns={[
+                         {
+                           key: 'nombre',
+                           label: 'Nombre de la Receta'
+                         },
+                         {
+                           key: 'codigo',
+                           label: 'Código'
+                         }
+                       ]}
+                       title=""
+                       showTitle={false}
+                       emptyMessage="No hay recetas disponibles"
+                       defaultExpandedGroups={[]}
+                       showCheckboxes={true}
+                       selectedItems={selectedRecetas}
+                       onItemSelect={handleRecetaSelect}
+                       groupIcons={{}}
+                       onItemClick={(item) => {
+                         // Aquí puedes manejar la selección de recetas
+                         console.log('Receta seleccionada:', item);
+                       }}
+                     />
+                   </div>
                 )}
               </div>
 
-              {/* Botón Asignar Menús */}
+              {/* Contador de recetas seleccionadas y Botón Asignar Menús */}
               <div className="p-4 bg-gray-50 border-t border-gray-200">
+                {/* Contador de recetas seleccionadas */}
+                {selectedRecetas.size > 0 && (
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-gray-700">
+                      {selectedRecetas.size} receta{selectedRecetas.size !== 1 ? 's' : ''} seleccionada{selectedRecetas.size !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                )}
+                
                 <Button
                   type="button"
                   onClick={handleAsignarMenus}
