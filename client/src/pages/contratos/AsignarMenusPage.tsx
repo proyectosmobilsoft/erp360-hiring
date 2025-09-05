@@ -31,6 +31,7 @@ import {
 import { ContratosService, ContratoView } from '../../services/contratosService';
 import { UnidadesServicioService, UnidadServicio } from '../../services/unidadesServicioService';
 import { ProductosService, ComponenteMenu, Producto, RecetaAgrupada } from '../../services/productosService';
+import { AsignacionesService, AsignacionData } from '../../services/asignacionesService';
 import { useToast } from '../../hooks/use-toast';
 import { useGlobalLoading } from '../../contexts/GlobalLoadingContext';
 import GroupedTable, { GroupedTableData } from '../../components/GroupedTable';
@@ -301,6 +302,8 @@ const AsignarMenusPage: React.FC = () => {
   const [selectedRecetas, setSelectedRecetas] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState('');
   const [asignacionesUnidades, setAsignacionesUnidades] = useState<AsignacionUnidad[]>([]);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Función para verificar si una receta está asignada a alguna unidad
   const isRecetaAsignada = (recetaId: number): boolean => {
@@ -586,6 +589,101 @@ const AsignarMenusPage: React.FC = () => {
     setAsignacionesUnidades(nuevasAsignaciones);
   };
 
+  // Función para preparar los datos de asignación para la base de datos
+  const prepararDatosAsignacion = (): AsignacionData[] => {
+    const asignaciones: AsignacionData[] = [];
+    
+    asignacionesUnidades.forEach(unidad => {
+      unidad.recetas.forEach(receta => {
+        asignaciones.push({
+          id_producto: receta.id_producto,
+          id_contrato: parseInt(unidad.contratoId),
+          id_unidad_servicio: parseInt(unidad.unidadId),
+          estado: 1
+        });
+      });
+    });
+    
+    return asignaciones;
+  };
+
+  // Función para manejar el guardado de asignaciones
+  const handleGuardarAsignaciones = async () => {
+    if (asignacionesUnidades.length === 0) {
+      toast({
+        title: "Sin asignaciones",
+        description: "No hay asignaciones para guardar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    showLoading();
+
+    try {
+      const datosAsignacion = prepararDatosAsignacion();
+      console.log('💾 Preparando para guardar:', datosAsignacion);
+
+      // Eliminar asignaciones existentes para este contrato
+      const contratoId = parseInt(asignacionesUnidades[0].contratoId);
+      await AsignacionesService.eliminarAsignacionesPorContrato(contratoId);
+
+      // Guardar nuevas asignaciones
+      const response = await AsignacionesService.guardarAsignaciones(datosAsignacion);
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Error al guardar las asignaciones');
+      }
+
+      toast({
+        title: "Asignaciones guardadas",
+        description: `Se guardaron ${datosAsignacion.length} asignaciones exitosamente`,
+        variant: "default",
+      });
+
+      // Cerrar el diálogo de confirmación
+      setShowConfirmDialog(false);
+
+      // Limpiar todo el formulario después del guardado exitoso
+      limpiarFormulario();
+
+    } catch (error: any) {
+      console.error('❌ Error al guardar asignaciones:', error);
+      toast({
+        title: "Error al guardar",
+        description: error.message || 'Ocurrió un error inesperado al guardar las asignaciones',
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+      hideLoading();
+    }
+  };
+
+  // Función para limpiar todo el formulario
+  const limpiarFormulario = () => {
+    setSelectedContrato('');
+    setSelectedUnidades([]);
+    setSelectedRecetas(new Set());
+    setAsignacionesUnidades([]);
+    setFilterText('');
+    console.log('🧹 Formulario limpiado completamente');
+  };
+
+  // Función para mostrar el diálogo de confirmación
+  const handleMostrarConfirmacion = () => {
+    if (asignacionesUnidades.length === 0) {
+      toast({
+        title: "Sin asignaciones",
+        description: "No hay asignaciones para guardar",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowConfirmDialog(true);
+  };
+
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
@@ -799,23 +897,18 @@ const AsignarMenusPage: React.FC = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          // TODO: Implementar guardado en base de datos
-                          console.log('Guardando asignaciones:', asignacionesUnidades);
-                        }}
+                        onClick={handleMostrarConfirmacion}
+                        disabled={isSaving}
                         className="text-green-600 hover:text-green-700 hover:bg-green-50"
                       >
                         <Check className="w-3 h-3 mr-1" />
-                        Guardar
+                        {isSaving ? 'Guardando...' : 'Guardar'}
                       </Button>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setAsignacionesUnidades([]);
-                          setSelectedRecetas(new Set());
-                        }}
+                        onClick={limpiarFormulario}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2"
                       >
                         <X className="w-3 h-3" />
@@ -969,6 +1062,67 @@ const AsignarMenusPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Diálogo de confirmación para guardar */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <Check className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Confirmar guardado
+                </h3>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">
+                ¿Estás seguro de que deseas guardar las siguientes asignaciones?
+              </p>
+              
+              <div className="mt-3 bg-gray-50 rounded-md p-3">
+                <div className="text-sm">
+                  <p><strong>Contrato:</strong> {asignacionesUnidades[0]?.contratoNombre}</p>
+                  <p><strong>Unidades:</strong> {asignacionesUnidades.length}</p>
+                  <p><strong>Total de asignaciones:</strong> {asignacionesUnidades.reduce((total, unidad) => total + unidad.recetas.length, 0)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowConfirmDialog(false)}
+                disabled={isSaving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleGuardarAsignaciones}
+                disabled={isSaving}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 mr-2" />
+                    Confirmar guardado
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
