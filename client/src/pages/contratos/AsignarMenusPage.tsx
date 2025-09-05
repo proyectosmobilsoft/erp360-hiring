@@ -35,6 +35,15 @@ import { useToast } from '../../hooks/use-toast';
 import { useGlobalLoading } from '../../contexts/GlobalLoadingContext';
 import GroupedTable, { GroupedTableData } from '../../components/GroupedTable';
 
+interface AsignacionUnidad {
+  unidadId: string;
+  unidadNombre: string;
+  zonaNombre: string;
+  contratoId: string;
+  contratoNombre: string;
+  recetas: (RecetaAgrupada & { uniqueId: string })[];
+}
+
 interface SelectWithSearchProps {
   options: { id: string; nombre: string }[];
   value: string;
@@ -69,13 +78,12 @@ const SelectWithSearch: React.FC<SelectWithSearchProps> = ({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className={`w-full px-3 py-2 text-left border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-          disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white cursor-pointer hover:border-gray-400'
-        }`}
+        className={`w-full px-3 py-2 text-left border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white cursor-pointer hover:border-gray-400'
+          }`}
       >
         {selectedOption ? selectedOption.nombre : placeholder}
       </button>
-      
+
       {isOpen && !disabled && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
           <div className="p-2">
@@ -167,9 +175,8 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className={`w-full px-3 py-2 text-left border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-          disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white cursor-pointer hover:border-gray-400'
-        }`}
+        className={`w-full px-3 py-2 text-left border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white cursor-pointer hover:border-gray-400'
+          }`}
       >
         {selectedValues.length > 0 ? (
           <div className="flex flex-wrap gap-1">
@@ -196,7 +203,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
           <span className="text-gray-500">{placeholder}</span>
         )}
       </button>
-      
+
       {isOpen && !disabled && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
           <div className="p-2">
@@ -256,7 +263,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            onChange={() => {}} // El onChange se maneja en el onClick del botón
+                            onChange={() => { }} // El onChange se maneja en el onClick del botón
                             className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
                           />
                           <span className={isSelected ? 'text-cyan-800 font-medium' : 'text-gray-700'}>
@@ -284,7 +291,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 const AsignarMenusPage: React.FC = () => {
   const { toast } = useToast();
   const { showLoading, hideLoading } = useGlobalLoading();
-  
+
   const [contratosDisponibles, setContratosDisponibles] = useState<ContratoView[]>([]);
   const [selectedContrato, setSelectedContrato] = useState<string>('');
   const [unidadesFiltradas, setUnidadesFiltradas] = useState<UnidadServicio[]>([]);
@@ -293,11 +300,12 @@ const AsignarMenusPage: React.FC = () => {
   const [menusAsignados, setMenusAsignados] = useState<Producto[]>([]);
   const [selectedRecetas, setSelectedRecetas] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState('');
+  const [asignacionesUnidades, setAsignacionesUnidades] = useState<AsignacionUnidad[]>([]);
 
   // Función para transformar recetas agrupadas a datos de tabla
   const transformRecetasToTableData = (recetas: RecetaAgrupada[]): GroupedTableData[] => {
     return recetas.map((receta, index) => ({
-      id: `${receta.id}-${receta.tipo_zona}-${receta.nombre_servicio}-${index}`, // ID único combinando varios campos
+      id: `${receta.id_producto}-${receta.tipo_zona}-${receta.nombre_servicio}-${index}`, // ID único usando id_producto real
       codigo: receta.codigo,
       nombre: receta.nombre_receta,
       tipo_zona: receta.tipo_zona, // Primer nivel de agrupación
@@ -305,31 +313,31 @@ const AsignarMenusPage: React.FC = () => {
       orden: receta.orden,
       estado: 1,
       // Mantener el ID original para referencia si es necesario
-      originalId: receta.id
+      originalId: receta.id_producto // Usar id_producto como ID original
     }));
   };
 
   // Función para filtrar recetas basándose en las selecciones actuales
   const getRecetasFiltradas = (): GroupedTableData[] => {
     const recetasTransformadas = transformRecetasToTableData(recetasAgrupadas);
-    
+
     // Si no hay recetas seleccionadas, mostrar todas
     if (selectedRecetas.size === 0) {
       return recetasTransformadas;
     }
-    
+
     // Obtener el tipo de zona de las recetas seleccionadas
     const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
       return recetasTransformadas.find(r => r.id === id);
     }).filter(Boolean);
-    
+
     const tipoZonaSeleccionado = recetasSeleccionadas[0]?.tipo_zona;
-    
+
     // Si hay un tipo de zona seleccionado, mostrar solo las recetas de ese tipo
     if (tipoZonaSeleccionado) {
       return recetasTransformadas.filter(receta => receta.tipo_zona === tipoZonaSeleccionado);
     }
-    
+
     return recetasTransformadas;
   };
 
@@ -350,7 +358,7 @@ const AsignarMenusPage: React.FC = () => {
       const response = await ContratosService.getContratos();
       if (response.data) {
         // Filtrar solo contratos que no estén en estado INACTIVO
-        const contratosActivos = response.data.filter(contrato => 
+        const contratosActivos = response.data.filter(contrato =>
           contrato.Estado !== 'INACTIVO'
         );
         setContratosDisponibles(contratosActivos);
@@ -380,9 +388,9 @@ const AsignarMenusPage: React.FC = () => {
 
   const handleContratoChange = async (contratoValue: string) => {
     console.log('🔄 Cambiando contrato a:', contratoValue);
-          setSelectedContrato(contratoValue);
-      setSelectedUnidades([]);
-      setMenusAsignados([]);
+    setSelectedContrato(contratoValue);
+    setSelectedUnidades([]);
+    setMenusAsignados([]);
 
     if (contratoValue) {
       // Buscar por ID del contrato
@@ -407,9 +415,9 @@ const AsignarMenusPage: React.FC = () => {
   const cargarRecetasAgrupadas = async () => {
     try {
       showLoading('Cargando catálogo de recetas...');
-      
+
       const response = await ProductosService.getRecetasAgrupadas();
-      
+
       if (response.error) {
         console.error('Error cargando recetas:', response.error);
         toast({
@@ -422,7 +430,7 @@ const AsignarMenusPage: React.FC = () => {
 
       setRecetasAgrupadas(response.data || []);
       console.log('✅ Recetas agrupadas cargadas:', response.data);
-      
+
     } catch (error) {
       console.error('Error cargando recetas agrupadas:', error);
       toast({
@@ -444,18 +452,18 @@ const AsignarMenusPage: React.FC = () => {
   const handleRecetaSelect = (receta: GroupedTableData, selected: boolean) => {
     setSelectedRecetas(prev => {
       const newSet = new Set(prev);
-      
+
       if (selected) {
         // Verificar si ya hay recetas seleccionadas de otros tipos de zona
         const recetasActuales = Array.from(prev).map(id => {
-          return recetasAgrupadas.find(r => 
+          return recetasAgrupadas.find(r =>
             `${r.id}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.indexOf(r)}` === id
           );
         }).filter(Boolean);
-        
+
         const tiposZonaSeleccionados = new Set(recetasActuales.map(r => r?.tipo_zona));
         const tipoZonaActual = receta.tipo_zona;
-        
+
         // Si hay recetas de otros tipos de zona seleccionadas, no permitir seleccionar
         if (tiposZonaSeleccionados.size > 0 && !tiposZonaSeleccionados.has(tipoZonaActual)) {
           toast({
@@ -465,12 +473,12 @@ const AsignarMenusPage: React.FC = () => {
           });
           return prev; // No hacer cambios
         }
-        
+
         newSet.add(receta.id.toString());
       } else {
         newSet.delete(receta.id.toString());
       }
-      
+
       return newSet;
     });
   };
@@ -503,12 +511,50 @@ const AsignarMenusPage: React.FC = () => {
   };
 
   const handleAsignarMenus = () => {
-    console.log('🎯 Asignando menús seleccionados...');
-    // TODO: Implementar lógica de asignación
-    toast({
-      title: "Asignación de menús",
-      description: "Funcionalidad en desarrollo",
+    if (selectedRecetas.size === 0 || selectedUnidades.length === 0 || !selectedContrato) {
+      toast({
+        title: "Error",
+        description: "Debe seleccionar al menos una receta y una unidad de servicio",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Obtener las recetas seleccionadas
+    const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
+      return recetasAgrupadas.find(r =>
+        `${r.id_producto}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.indexOf(r)}` === id
+      );
+    }).filter(Boolean) as RecetaAgrupada[];
+
+    // Obtener información del contrato seleccionado
+    const contrato = contratosDisponibles.find(c => c.id?.toString() === selectedContrato);
+    if (!contrato) {
+      toast({
+        title: "Error",
+        description: "No se encontró el contrato seleccionado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Crear asignaciones para cada unidad de servicio
+    const nuevasAsignaciones: AsignacionUnidad[] = selectedUnidades.map(unidadId => {
+      const unidad = unidadesFiltradas.find(u => u.id?.toString() === unidadId);
+      return {
+        unidadId,
+        unidadNombre: unidad?.nombre_servicio || 'Unidad desconocida',
+        zonaNombre: unidad?.zona_nombre || 'Zona desconocida',
+        contratoId: selectedContrato,
+        contratoNombre: contrato['Entidad / Contratante:FLT'] || 'Contrato desconocido',
+        recetas: recetasSeleccionadas.map(receta => ({
+          ...receta,
+          uniqueId: `${receta.id_producto}-${unidadId}` // ID único que combina id_producto + unidad
+        }))
+      };
     });
+
+    setAsignacionesUnidades(nuevasAsignaciones);
   };
 
   return (
@@ -582,39 +628,39 @@ const AsignarMenusPage: React.FC = () => {
                   </div>
                 </div>
 
-                                 <div className="relative">
-                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                   <Input
-                     type="text"
-                     placeholder="Buscar productos..."
-                     value={filterText}
-                     onChange={(e) => setFilterText(e.target.value)}
-                     className="pl-10"
-                   />
-                 </div>
-                 
-                 {/* Indicador de tipo de zona seleccionado */}
-                 {selectedRecetas.size > 0 && (() => {
-                   const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
-                     return transformRecetasToTableData(recetasAgrupadas).find(r => r.id === id);
-                   }).filter(Boolean);
-                   
-                   const tipoZonaSeleccionado = recetasSeleccionadas[0]?.tipo_zona;
-                   
-                   return (
-                     <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                       <div className="flex items-center gap-2">
-                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                         <span className="text-sm font-medium text-blue-800">
-                           Tipo de zona seleccionado: <strong>{tipoZonaSeleccionado}</strong>
-                         </span>
-                       </div>
-                       <p className="text-xs text-blue-600 mt-1">
-                         Solo se muestran recetas de este tipo de zona. Deselecciona todas para ver todas las opciones.
-                       </p>
-                     </div>
-                   );
-                 })()}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar productos..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                {/* Indicador de tipo de zona seleccionado */}
+                {selectedRecetas.size > 0 && (() => {
+                  const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
+                    return transformRecetasToTableData(recetasAgrupadas).find(r => r.id === id);
+                  }).filter(Boolean);
+
+                  const tipoZonaSeleccionado = recetasSeleccionadas[0]?.tipo_zona;
+
+                  return (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-blue-800">
+                          Tipo de zona seleccionado: <strong>{tipoZonaSeleccionado}</strong>
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Solo se muestran recetas de este tipo de zona. Deselecciona todas para ver todas las opciones.
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="max-h-96 overflow-y-auto">
@@ -643,34 +689,34 @@ const AsignarMenusPage: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                                     <div className="p-4">
-                     <GroupedTable
-                       data={getRecetasFiltradas()}
-                       groupBy={['tipo_zona', 'nombre_servicio']}
-                       columns={[
-                         {
-                           key: 'nombre',
-                           label: 'Nombre de la Receta'
-                         },
-                         {
-                           key: 'codigo',
-                           label: 'Código'
-                         }
-                       ]}
-                       title=""
-                       showTitle={false}
-                       emptyMessage="No hay recetas disponibles"
-                       defaultExpandedGroups={[]}
-                       showCheckboxes={true}
-                       selectedItems={selectedRecetas}
-                       onItemSelect={handleRecetaSelect}
-                       groupIcons={{}}
-                       onItemClick={(item) => {
-                         // Aquí puedes manejar la selección de recetas
-                         console.log('Receta seleccionada:', item);
-                       }}
-                     />
-                   </div>
+                  <div className="p-4">
+                    <GroupedTable
+                      data={getRecetasFiltradas()}
+                      groupBy={['tipo_zona', 'nombre_servicio']}
+                      columns={[
+                        {
+                          key: 'nombre',
+                          label: 'Nombre de la Receta'
+                        },
+                        {
+                          key: 'codigo',
+                          label: 'Código'
+                        }
+                      ]}
+                      title=""
+                      showTitle={false}
+                      emptyMessage="No hay recetas disponibles"
+                      defaultExpandedGroups={[]}
+                      showCheckboxes={true}
+                      selectedItems={selectedRecetas}
+                      onItemSelect={handleRecetaSelect}
+                      groupIcons={{}}
+                      onItemClick={(item) => {
+                        // Aquí puedes manejar la selección de recetas
+                        console.log('Receta seleccionada:', item);
+                      }}
+                    />
+                  </div>
                 )}
               </div>
 
@@ -685,69 +731,188 @@ const AsignarMenusPage: React.FC = () => {
                     </span>
                   </div>
                 )}
-                
+
                 <Button
                   type="button"
                   onClick={handleAsignarMenus}
                   className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-                  disabled={menusAsignados.length === 0}
+                  disabled={selectedRecetas.size === 0 || selectedUnidades.length === 0 || !selectedContrato}
                 >
                   <ArrowRight className="w-4 h-4 mr-2" />
-                  Asignar Productos al Menú
+                  Asignar Recetas a las Unidades
                 </Button>
               </div>
             </div>
 
-            {/* Columna derecha - Productos Seleccionados */}
+            {/* Columna derecha - Recetas Asignadas */}
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
               <div className="bg-teal-50 p-4 border-b border-teal-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
-                    <Check className="w-4 h-4 text-teal-600" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
+                      <Check className="w-4 h-4 text-teal-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Recetas Asignadas
+                      </h3>
+                      <p className="text-gray-600 text-sm">
+                        {asignacionesUnidades.length > 0
+                          ? `${asignacionesUnidades[0]?.recetas.length || 0} recetas asignadas a ${asignacionesUnidades.length} unidades`
+                          : 'No hay recetas asignadas'
+                        }
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Productos Seleccionados
-                    </h3>
-                    <p className="text-gray-600 text-sm">
-                      {menusAsignados.length} productos en el menú
-                    </p>
-                  </div>
+                  {asignacionesUnidades.length > 0 && (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // TODO: Implementar guardado en base de datos
+                          console.log('Guardando asignaciones:', asignacionesUnidades);
+                        }}
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                      >
+                        <Check className="w-3 h-3 mr-1" />
+                        Guardar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setAsignacionesUnidades([]);
+                          setSelectedRecetas(new Set());
+                        }}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="min-h-96">
-                {menusAsignados.length > 0 ? (
+                {asignacionesUnidades.length > 0 ? (
                   <div className="p-4">
-                    <div className="space-y-2">
-                      {menusAsignados.map((menu) => (
+                    <div className="space-y-4">
+                      {asignacionesUnidades.map((asignacion, index) => (
                         <div
-                          key={menu.id}
-                          className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:shadow-sm transition-all"
+                          key={`${asignacion.contratoId}-${asignacion.unidadId}`}
+                          className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-all"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">
-                              <Check className="w-4 h-4 text-teal-600" />
+                          {/* Información de la unidad */}
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <MapPin className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-900">
+                                  {asignacion.unidadNombre}
+                                </h5>
+                                <p className="text-xs text-gray-500">
+                                  Zona: {asignacion.zonaNombre} | Contrato: {asignacion.contratoNombre}
+                                </p>
+                              </div>
                             </div>
-
-                            <div className="flex-1">
-                              <h5 className="text-sm font-medium text-gray-900">
-                                {menu.nombre}
-                              </h5>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Producto asignado al menú
-                              </p>
-                            </div>
-
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => setMenusAsignados(prev => prev.filter(m => m.id !== menu.id))}
+                              onClick={() => {
+                                setAsignacionesUnidades(prev => prev.filter((_, i) => i !== index));
+                              }}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
                               <X className="w-4 h-4" />
                             </Button>
+                          </div>
+
+                          {/* Lista de recetas asignadas */}
+                          <div className="space-y-2">
+                            <h6 className="text-xs font-medium text-gray-700 mb-2">
+                              Recetas asignadas ({asignacion.recetas.length}):
+                            </h6>
+                            <div className="grid grid-cols-1 gap-2">
+                              {asignacion.recetas.map((receta, recetaIndex) => (
+                                <div
+                                  key={`${asignacion.unidadId}-${receta.id}-${recetaIndex}`}
+                                  className="flex items-center justify-between bg-white border border-gray-100 rounded-lg p-2"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                                    <span className="text-xs text-gray-700">{receta.nombre_receta}</span>
+                                    <span className="text-xs text-gray-400">({receta.codigo})</span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      console.log('=== ELIMINANDO RECETA ===');
+                                      console.log('Receta a eliminar:', receta);
+                                      console.log('ID de la receta:', receta.id);
+                                      console.log('Unidad actual:', asignacion.unidadId);
+                                      console.log('Recetas antes de eliminar:', asignacion.recetas.map(r => ({ id: r.id, nombre: r.nombre_receta })));
+
+                                      // Remover receta específica solo de esta unidad
+                                      setAsignacionesUnidades(prev => {
+                                        console.log('Asignaciones antes:', prev.map(u => ({ unidad: u.unidadId, recetas: u.recetas.map(r => r.id) })));
+
+                                        const updated = prev.map(unit => {
+                                          if (unit.unidadId === asignacion.unidadId) {
+                                            const filteredRecetas = unit.recetas.filter(r => (r as any).uniqueId !== (receta as any).uniqueId);
+                                            console.log('Recetas filtradas para unidad', unit.unidadId, ':', filteredRecetas.map(r => ({ id: r.id, uniqueId: (r as any).uniqueId, nombre: r.nombre_receta })));
+                                            return { ...unit, recetas: filteredRecetas };
+                                          }
+                                          return unit;
+                                        });
+
+                                        // Filtrar unidades que no tengan recetas asignadas
+                                        const updatedWithFilteredUnits = updated.filter(unit => unit.recetas.length > 0);
+                                        
+                                        console.log('Asignaciones después:', updatedWithFilteredUnits.map(u => ({ unidad: u.unidadId, recetas: u.recetas.map(r => r.id) })));
+                                        
+                                        // Verificar si la receta existe en otras unidades después de la actualización
+                                        const recetaExisteEnOtrasUnidades = updatedWithFilteredUnits.some(unit => 
+                                          unit.unidadId !== asignacion.unidadId && 
+                                          unit.recetas.some(r => (r as any).uniqueId === (receta as any).uniqueId)
+                                        );
+
+                                        console.log('¿Receta existe en otras unidades?', recetaExisteEnOtrasUnidades);
+
+                                        // Si no existe en otras unidades, desmarcar del catálogo
+                                        if (!recetaExisteEnOtrasUnidades) {
+                                          // Buscar la receta original en recetasAgrupadas
+                                          const recetaOriginal = recetasAgrupadas.find(r => r.id_producto === receta.id_producto);
+                                          if (recetaOriginal) {
+                                            const recetaIndex = recetasAgrupadas.indexOf(recetaOriginal);
+                                            const recetaId = `${recetaOriginal.id_producto}-${recetaOriginal.tipo_zona}-${recetaOriginal.nombre_servicio}-${recetaIndex}`;
+                                            console.log('Desmarcando del catálogo:', recetaId);
+                                            setSelectedRecetas(prevSelected => {
+                                              const newSet = new Set(prevSelected);
+                                              newSet.delete(recetaId);
+                                              console.log('Recetas seleccionadas después:', Array.from(newSet));
+                                              return newSet;
+                                            });
+                                          }
+                                        }
+                                        
+                                        return updatedWithFilteredUnits;
+                                      });
+                                    }}
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 h-6 w-6"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -759,14 +924,14 @@ const AsignarMenusPage: React.FC = () => {
                       <UtensilsCrossed className="w-8 h-8 text-gray-400" />
                     </div>
                     <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                      Menú Vacío
+                      Sin Asignaciones
                     </h4>
                     <p className="text-sm text-gray-500 max-w-xs">
-                      Los productos que seleccione aparecerán aquí para formar el menú del contrato
+                      Las recetas que seleccione y asigne aparecerán aquí organizadas por unidad de servicio
                     </p>
                     <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
                       <ArrowRight className="w-3 h-3" />
-                      <span>Seleccione productos de la izquierda</span>
+                      <span>Seleccione recetas y haga clic en "Asignar"</span>
                     </div>
                   </div>
                 )}

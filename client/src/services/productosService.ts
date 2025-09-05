@@ -18,6 +18,7 @@ export interface ComponenteMenu {
 
 export interface RecetaAgrupada {
   id: string;
+  id_producto: number;
   tipo_zona: string;
   nombre_servicio: string;
   codigo: string;
