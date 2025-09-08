@@ -31,7 +31,7 @@ import {
 import { ContratosService, ContratoView } from '../../services/contratosService';
 import { UnidadesServicioService, UnidadServicio } from '../../services/unidadesServicioService';
 import { ProductosService, ComponenteMenu, Producto, RecetaAgrupada } from '../../services/productosService';
-import { AsignacionesService, AsignacionData } from '../../services/asignacionesService';
+import { AsignacionesService, AsignacionData, RecetaExistente } from '../../services/asignacionesService';
 import { useToast } from '../../hooks/use-toast';
 import { useGlobalLoading } from '../../contexts/GlobalLoadingContext';
 import GroupedTable, { GroupedTableData } from '../../components/GroupedTable';
@@ -46,7 +46,7 @@ interface AsignacionUnidad {
 }
 
 interface SelectWithSearchProps {
-  options: { id: string; nombre: string }[];
+  options: { id: string; nombre: string; tiene_menu?: boolean }[];
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
@@ -270,11 +270,13 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                           <span className={isSelected ? 'text-cyan-800 font-medium' : 'text-gray-700'}>
                             {option.nombre}
                           </span>
-                          {(option as any).zona_nombre && (
-                            <span className="text-xs text-gray-500 ml-auto">
-                              (TIENE MENUS)
-                            </span>
-                          )}
+                          <span className={`text-xs ml-auto px-2 py-1 rounded-full ${
+                            (option as any).tiene_menu 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {(option as any).tiene_menu ? 'Tiene menú' : 'No tiene menú'}
+                          </span>
                         </div>
                       </button>
                     );
@@ -671,6 +673,85 @@ const AsignarMenusPage: React.FC = () => {
     console.log('🧹 Formulario limpiado completamente');
   };
 
+  // Función para cargar recetas existentes de una unidad
+  const cargarRecetasExistentes = async (unidadId: string) => {
+    try {
+      console.log('🔍 Cargando recetas existentes para unidad:', unidadId);
+      
+      const response = await AsignacionesService.getRecetasExistentesPorUnidad(parseInt(unidadId));
+      
+      if (response.error) {
+        console.error('❌ Error cargando recetas existentes:', response.error);
+        return;
+      }
+
+      if (response.data && response.data.length > 0) {
+        // Convertir recetas existentes al formato esperado
+        const recetasExistentes = response.data.map(receta => ({
+          id: receta.id_producto.toString(),
+          id_producto: receta.id_producto,
+          tipo_zona: receta.tipo_zona,
+          nombre_servicio: receta.nombre_servicio,
+          codigo: receta.codigo,
+          nombre_receta: receta.nombre_receta,
+          orden: 0,
+          uniqueId: `${receta.id_producto}-${unidadId}`
+        }));
+
+        // Obtener información de la unidad
+        const unidad = unidadesFiltradas.find(u => u.id.toString() === unidadId);
+        const contrato = contratosDisponibles.find(c => c.id?.toString() === selectedContrato);
+
+        if (unidad && contrato) {
+          // Crear asignación con recetas existentes
+          const nuevaAsignacion: AsignacionUnidad = {
+            unidadId,
+            unidadNombre: unidad.nombre_servicio,
+            zonaNombre: unidad.zona_nombre || 'Sin Zona',
+            contratoId: selectedContrato,
+            contratoNombre: contrato['Entidad / Contratante:FLT'] || 'Contrato desconocido',
+            recetas: recetasExistentes
+          };
+
+          // Agregar a las asignaciones existentes
+          setAsignacionesUnidades(prev => {
+            // Verificar si ya existe una asignación para esta unidad
+            const existeAsignacion = prev.some(a => a.unidadId === unidadId);
+            if (existeAsignacion) {
+              return prev; // No duplicar
+            }
+            return [...prev, nuevaAsignacion];
+          });
+
+          // Marcar las recetas como seleccionadas en el catálogo
+          const recetasIds = recetasExistentes.map(r => `${r.id_producto}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.findIndex(ra => ra.id_producto === r.id_producto)}`);
+          setSelectedRecetas(prev => {
+            const newSet = new Set(prev);
+            recetasIds.forEach(id => newSet.add(id));
+            return newSet;
+          });
+
+          console.log('✅ Recetas existentes cargadas:', recetasExistentes);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error inesperado cargando recetas existentes:', error);
+    }
+  };
+
+  // Función para manejar el cambio de unidades seleccionadas
+  const handleUnidadesChange = (nuevasUnidades: string[]) => {
+    setSelectedUnidades(nuevasUnidades);
+    
+    // Cargar recetas existentes para las nuevas unidades que tienen menú
+    nuevasUnidades.forEach(unidadId => {
+      const unidad = unidadesFiltradas.find(u => u.id.toString() === unidadId);
+      if (unidad && unidad.tiene_menu) {
+        cargarRecetasExistentes(unidadId);
+      }
+    });
+  };
+
   // Función para mostrar el diálogo de confirmación
   const handleMostrarConfirmacion = () => {
     if (asignacionesUnidades.length === 0) {
@@ -726,10 +807,11 @@ const AsignarMenusPage: React.FC = () => {
                   id: u.id.toString(),
                   nombre: u.nombre_servicio,
                   zona_nombre: u.zona_nombre,
-                  zona_id: u.zona_id
+                  zona_id: u.zona_id,
+                  tiene_menu: u.tiene_menu
                 }))}
                 selectedValues={selectedUnidades}
-                onChange={setSelectedUnidades}
+                onChange={handleUnidadesChange}
                 placeholder={selectedContrato ? "Seleccionar unidades..." : "Primero seleccione un contrato"}
                 disabled={!selectedContrato}
               />

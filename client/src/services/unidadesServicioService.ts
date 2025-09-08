@@ -4,12 +4,13 @@ export interface UnidadServicio {
   id: number;
   codigo: number;
   nombre_servicio: string;
-  id_municipio: number;
+  id_sucursal: number;
   no_ppl: number;
   created_at?: string;
   updated_at?: string;
   zona_nombre?: string;
   zona_id?: number;
+  tiene_menu?: boolean;
 }
 
 interface UnidadesServicioResponse {
@@ -19,6 +20,34 @@ interface UnidadesServicioResponse {
 }
 
 export class UnidadesServicioService {
+  /**
+   * Verifica si una unidad de servicio tiene productos asociados (de cualquier contrato)
+   */
+  static async verificarTieneMenu(unidadId: number): Promise<boolean> {
+    try {
+      console.log('🔍 Verificando menú para unidad:', unidadId);
+      
+      const { data, error } = await supabase
+        .from('inv_productos_unidad_servicio')
+        .select('id')
+        .eq('id_unidad_servicio', unidadId)
+        .limit(1);
+
+      if (error) {
+        console.error('❌ Error verificando menú para unidad:', unidadId, error);
+        return false;
+      }
+
+      const tieneMenu = data && data.length > 0;
+      console.log(`✅ Unidad ${unidadId} ${tieneMenu ? 'SÍ' : 'NO'} tiene menú (${data?.length || 0} registros)`);
+      
+      return tieneMenu;
+    } catch (error) {
+      console.error('❌ Error verificando menú para unidad:', unidadId, error);
+      return false;
+    }
+  }
+
   /**
    * Obtiene todas las unidades de servicio activas
    */
@@ -82,7 +111,7 @@ export class UnidadesServicioService {
               id,
               codigo,
               nombre_servicio,
-              id_municipio,
+              id_sucursal,
               no_ppl,
               created_at,
               updated_at
@@ -103,7 +132,7 @@ export class UnidadesServicioService {
                 id: unidad.id,
                 codigo: unidad.codigo,
                 nombre_servicio: unidad.nombre_servicio,
-                id_municipio: unidad.id_municipio,
+                id_sucursal: unidad.id_sucursal,
                 no_ppl: unidad.no_ppl,
                 created_at: unidad.created_at,
                 updated_at: unidad.updated_at,
@@ -120,9 +149,20 @@ export class UnidadesServicioService {
         index === self.findIndex(u => u.id === unidad.id)
       );
 
-      console.log('✅ Unidades con zona encontradas:', unidadesUnicas);
+      // Verificar el estado del menú para cada unidad
+      const unidadesConMenu = await Promise.all(
+        unidadesUnicas.map(async (unidad) => {
+          const tieneMenu = await UnidadesServicioService.verificarTieneMenu(unidad.id);
+          return {
+            ...unidad,
+            tiene_menu: tieneMenu
+          };
+        })
+      );
 
-      return { data: unidadesUnicas as UnidadServicio[], error: null, count: unidadesUnicas.length };
+      console.log('✅ Unidades con zona y estado de menú:', unidadesConMenu);
+
+      return { data: unidadesConMenu as UnidadServicio[], error: null, count: unidadesConMenu.length };
     } catch (error) {
       console.error('❌ Error en getUnidadesPorContrato:', error);
       return { data: null, error, count: null };

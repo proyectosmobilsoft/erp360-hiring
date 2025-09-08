@@ -6,7 +6,7 @@ export interface Sucursal {
   codigo: string;
   estado: number;
   id_empresa: number;
-  id_municipio: number;
+  id_sucursal: number;
   tipo_control_fecha?: string;
 }
 

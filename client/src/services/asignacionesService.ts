@@ -7,6 +7,17 @@ export interface AsignacionData {
   estado?: number;
 }
 
+export interface RecetaExistente {
+  id: number;
+  id_producto: number;
+  id_contrato: number;
+  id_unidad_servicio: number;
+  nombre_receta: string;
+  codigo: string;
+  tipo_zona: string;
+  nombre_servicio: string;
+}
+
 export interface AsignacionResponse {
   data: any[] | null;
   error: any;
@@ -14,23 +25,129 @@ export interface AsignacionResponse {
 
 export class AsignacionesService {
   /**
+   * Obtiene las recetas existentes para una unidad de servicio específica
+   */
+  static async getRecetasExistentesPorUnidad(unidadId: number): Promise<{ data: RecetaExistente[] | null; error: any }> {
+    try {
+      console.log('🔍 Obteniendo recetas existentes para unidad:', unidadId);
+      
+      // Primero obtener las asignaciones de la unidad
+      const { data: asignaciones, error: asignacionesError } = await supabase
+        .from('inv_productos_unidad_servicio')
+        .select(`
+          id,
+          id_producto,
+          id_contrato,
+          id_unidad_servicio
+        `)
+        .eq('id_unidad_servicio', unidadId);
+
+      if (asignacionesError) {
+        console.error('❌ Error obteniendo asignaciones:', asignacionesError);
+        return { data: null, error: asignacionesError };
+      }
+
+      if (!asignaciones || asignaciones.length === 0) {
+        console.log('⚠️ No se encontraron asignaciones para la unidad:', unidadId);
+        return { data: [], error: null };
+      }
+
+      // Obtener los IDs de productos únicos
+      const productosIds = [...new Set(asignaciones.map(a => a.id_producto))];
+      
+      // Obtener información de los productos con sus relaciones
+      const { data: productos, error: productosError } = await supabase
+        .from('inv_productos')
+        .select(`
+          id,
+          nombre,
+          codigo,
+          inv_tipo_producto!inner (
+            es_receta
+          ),
+          inv_clase_servicios!inner (
+            nombre
+          ),
+          gen_tipo_zonas!inner (
+            nombre
+          )
+        `)
+        .in('id', productosIds)
+        .eq('inv_tipo_producto.es_receta', true);
+
+      if (productosError) {
+        console.error('❌ Error obteniendo productos:', productosError);
+        return { data: null, error: productosError };
+      }
+
+      // Combinar la información
+      const recetasExistentes: RecetaExistente[] = asignaciones
+        .map(asignacion => {
+          const producto = productos?.find(p => p.id === asignacion.id_producto);
+          if (!producto) return null;
+          
+          return {
+            id: asignacion.id,
+            id_producto: asignacion.id_producto,
+            id_contrato: asignacion.id_contrato,
+            id_unidad_servicio: asignacion.id_unidad_servicio,
+            nombre_receta: producto.nombre,
+            codigo: producto.codigo,
+            tipo_zona: (producto.gen_tipo_zonas as any)?.nombre || 'Sin Zona',
+            nombre_servicio: (producto.inv_clase_servicios as any)?.nombre || 'Sin Servicio'
+          };
+        })
+        .filter(Boolean) as RecetaExistente[];
+
+      console.log('✅ Recetas existentes encontradas:', recetasExistentes);
+      return { data: recetasExistentes, error: null };
+    } catch (error) {
+      console.error('❌ Error inesperado obteniendo recetas existentes:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
    * Guarda las asignaciones de productos a unidades de servicio
    */
   static async guardarAsignaciones(asignaciones: AsignacionData[]): Promise<AsignacionResponse> {
     try {
       console.log('💾 Guardando asignaciones en la base de datos...', asignaciones);
       
+      if (asignaciones.length === 0) {
+        console.log('⚠️ No hay asignaciones para guardar');
+        return { data: [], error: null };
+      }
+
       // Verificar que todos los IDs existan en sus tablas relacionadas
       await AsignacionesService.validarRelaciones(asignaciones);
       
-      // Insertar las asignaciones
+      // Obtener el ID del contrato (todas las asignaciones deben ser del mismo contrato)
+      const contratoId = asignaciones[0].id_contrato;
+      
+      // Eliminar asignaciones existentes para este contrato
+      console.log('🗑️ Eliminando asignaciones existentes para contrato:', contratoId);
+      const { error: deleteError } = await supabase
+        .from('inv_productos_unidad_servicio')
+        .delete()
+        .eq('id_contrato', contratoId);
+
+      if (deleteError) {
+        console.error('❌ Error al eliminar asignaciones existentes:', deleteError);
+        return { data: null, error: deleteError };
+      }
+
+      console.log('✅ Asignaciones existentes eliminadas para contrato:', contratoId);
+      
+      // Insertar las nuevas asignaciones
+      console.log('➕ Insertando nuevas asignaciones...');
       const { data, error } = await supabase
         .from('inv_productos_unidad_servicio')
         .insert(asignaciones)
         .select();
 
       if (error) {
-        console.error('❌ Error al guardar asignaciones:', error);
+        console.error('❌ Error al insertar nuevas asignaciones:', error);
         return { data: null, error };
       }
 
