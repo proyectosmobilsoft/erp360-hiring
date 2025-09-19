@@ -73,6 +73,23 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
   // Estado para las zonas cargadas
   const [zonasContrato, setZonasContrato] = useState<{[key: number]: any[]}>({});
 
+  // Estado para información de dependencias asociadas al eliminar
+  const [zonasAsociadas, setZonasAsociadas] = useState<{ 
+    tieneZonas: boolean; 
+    count: number; 
+    detalles: { zonas: number; minutas: number; productos: number } 
+  }>({ 
+    tieneZonas: false, 
+    count: 0, 
+    detalles: { zonas: 0, minutas: 0, productos: 0 } 
+  });
+  
+  // Estado para controlar el modal de eliminación
+  const [modalEliminarAbierto, setModalEliminarAbierto] = useState(false);
+  
+  // Estado para el contrato que se va a eliminar
+  const [contratoParaEliminar, setContratoParaEliminar] = useState<ContratoView | null>(null);
+
 
   // Función para expandir/contraer filas
   const toggleRowExpansion = async (contratoId: number) => {
@@ -165,27 +182,45 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
   };
 
   const handleEliminarInterno = async (contrato: ContratoView) => {
+    console.log('🚀 INICIANDO eliminación del contrato:', contrato.id, contrato['No Contrato']);
     showLoading('Eliminando contrato...');
     try {
-      const response = await ContratosService.eliminarContrato(contrato.id);
+      // Siempre usar eliminación con dependencias para evitar errores de foreign key
+      console.log('📞 Llamando a eliminarContratoConZonas...');
+      const response = await ContratosService.eliminarContratoConZonas(contrato.id);
       
       if (response.error) {
+        console.error('Error eliminando contrato:', response.error);
         toast({
           title: "Error al eliminar",
-          description: `No se pudo eliminar el contrato ${contrato['No Contrato']}`,
+          description: `No se pudo eliminar el contrato ${contrato['No Contrato']}: ${response.error.message}`,
           variant: "destructive",
         });
         return;
       }
       
+      const mensaje = zonasAsociadas.tieneZonas 
+        ? `El contrato ${contrato['No Contrato']} y sus ${zonasAsociadas.count} dependencia${zonasAsociadas.count > 1 ? 's' : ''} asociada${zonasAsociadas.count > 1 ? 's' : ''} han sido eliminados permanentemente`
+        : `El contrato ${contrato['No Contrato']} ha sido eliminado permanentemente`;
+      
       toast({
         title: "Contrato eliminado",
-        description: `El contrato ${contrato['No Contrato']} ha sido eliminado permanentemente`,
+        description: mensaje,
       });
+      
+      // Limpiar estados
+      setContratoParaEliminar(null);
+      setZonasAsociadas({ 
+        tieneZonas: false, 
+        count: 0, 
+        detalles: { zonas: 0, minutas: 0, productos: 0 } 
+      });
+      setModalEliminarAbierto(false);
       
       // Refrescar solo la tabla
       cargarContratos();
     } catch (error) {
+      console.error('Error inesperado eliminando contrato:', error);
       toast({
         title: "Error inesperado",
         description: "Ocurrió un error al eliminar el contrato",
@@ -194,6 +229,14 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
     } finally {
       hideLoading();
     }
+  };
+
+  // Función para verificar dependencias antes de mostrar el modal de confirmación
+  const handleEliminarClick = async (contrato: ContratoView) => {
+    const { tieneZonas, count, detalles } = await ContratosService.verificarZonasAsociadas(contrato.id);
+    setZonasAsociadas({ tieneZonas, count, detalles });
+    setContratoParaEliminar(contrato);
+    setModalEliminarAbierto(true);
   };
 
   // Cargar contratos
@@ -538,45 +581,24 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
 
                           {/* Botón de Eliminar - Solo si está inactivo */}
                           {contrato.Estado === 'INACTIVO' && (
-                            <AlertDialog>
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <AlertDialogTrigger asChild>
                                       <Button
                                         variant="ghost"
                                         size="icon"
                                         aria-label="Eliminar contrato"
                                         className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-100 transition-all duration-200"
+                                    onClick={() => handleEliminarClick(contrato)}
                                       >
                                         <Trash2 className="w-3 h-3" />
                                       </Button>
-                                    </AlertDialogTrigger>
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     <p>Eliminar</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Eliminar Contrato</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    ¿Está seguro que desea eliminar permanentemente el contrato <strong>{contrato['No Contrato']}</strong>?
-                                    <br />Esta acción no se puede deshacer.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleEliminarInterno(contrato)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Eliminar
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
                           )}
                         </div>
                       </TableCell>
@@ -713,6 +735,120 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
           </div>
         )}
       </div>
+
+      {/* Modal de confirmación de eliminación */}
+      <AlertDialog open={modalEliminarAbierto} onOpenChange={setModalEliminarAbierto}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-full">
+                <Trash2 className="w-6 h-6 text-red-600" />
+        </div>
+              <AlertDialogTitle className="text-xl">Eliminar Contrato</AlertDialogTitle>
+                </div>
+            
+            <AlertDialogDescription className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg border">
+                <p className="text-base font-medium text-gray-900 mb-2">
+                  ¿Está seguro que desea eliminar permanentemente el contrato?
+                </p>
+                <div className="bg-white p-3 rounded border-l-4 border-red-500">
+                  <p className="font-semibold text-gray-900">
+                    {contratoParaEliminar?.['No Contrato']}
+                  </p>
+                  <p className="text-sm text-gray-700 mt-1 font-medium">
+                    {contratoParaEliminar?.['Objeto']}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {contratoParaEliminar?.['Empresa']} - {contratoParaEliminar?.['Sucursal']}
+                  </p>
+                </div>
+                </div>
+
+              {zonasAsociadas.tieneZonas && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-1 bg-amber-100 rounded-full">
+                      <AlertCircle className="w-5 h-5 text-amber-600" />
+              </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-amber-800 mb-2">
+                        ⚠️ Advertencia: Dependencias Asociadas
+                      </h4>
+                      <p className="text-amber-700 mb-3">
+                        Este contrato tiene <strong>{zonasAsociadas.count} dependencia{zonasAsociadas.count > 1 ? 's' : ''}</strong> asociada{zonasAsociadas.count > 1 ? 's' : ''} que también será{zonasAsociadas.count > 1 ? 'án' : ''} eliminada{zonasAsociadas.count > 1 ? 's' : ''}:
+                      </p>
+                      
+                      <div className="space-y-2">
+                        {zonasAsociadas.detalles.zonas > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                            <span className="font-medium text-amber-800">
+                              {zonasAsociadas.detalles.zonas} Zona{zonasAsociadas.detalles.zonas > 1 ? 's' : ''} de servicio
+                      </span>
+                    </div>
+                        )}
+                        {zonasAsociadas.detalles.minutas > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                            <span className="font-medium text-amber-800">
+                              {zonasAsociadas.detalles.minutas} Minuta{zonasAsociadas.detalles.minutas > 1 ? 's' : ''} de contratación
+                      </span>
+                    </div>
+                        )}
+                        {zonasAsociadas.detalles.productos > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                            <span className="font-medium text-amber-800">
+                              {zonasAsociadas.detalles.productos} Asignación{zonasAsociadas.detalles.productos > 1 ? 'es' : ''} de producto{zonasAsociadas.detalles.productos > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                        )}
+        </div>
+
+                      <div className="mt-3 p-2 bg-amber-100 rounded text-xs text-amber-800">
+                        <strong>Importante:</strong> La eliminación de estas dependencias puede afectar otros procesos del sistema.
+                </div>
+                </div>
+              </div>
+                </div>
+              )}
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-1 bg-red-100 rounded-full">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  </div>
+                <div>
+                    <h4 className="font-semibold text-red-800 mb-1">
+                      Acción Irreversible
+                    </h4>
+                    <p className="text-red-700 text-sm">
+                      Esta acción no se puede deshacer. Todos los datos relacionados serán eliminados permanentemente.
+                    </p>
+                </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel 
+              onClick={() => setModalEliminarAbierto(false)}
+              className="flex-1"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => contratoParaEliminar && handleEliminarInterno(contratoParaEliminar)}
+              className="flex-1 bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Eliminar Permanentemente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

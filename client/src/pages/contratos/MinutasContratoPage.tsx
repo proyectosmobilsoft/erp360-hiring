@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -16,12 +16,15 @@ import {
   ArrowRight,
   Package,
   UtensilsCrossed,
-  Building2
+  Building2,
+  Eye
 } from 'lucide-react';
 import { ContratosService, ContratoView } from '../../services/contratosService';
+import { MinutasService, UnidadConMenu } from '../../services/minutasService';
 import { useToast } from '../../hooks/use-toast';
 import { useGlobalLoading } from '../../contexts/GlobalLoadingContext';
 import { supabase } from '../../services/supabaseClient';
+import MenuCalendarDetailed from '../../components/MenuCalendarDetailed';
 
 interface SelectWithSearchProps {
   options: { id: string; nombre: string }[];
@@ -41,6 +44,7 @@ const SelectWithSearch: React.FC<SelectWithSearchProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredOptions, setFilteredOptions] = useState(options);
+  const selectRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const filtered = options.filter(option =>
@@ -49,10 +53,28 @@ const SelectWithSearch: React.FC<SelectWithSearchProps> = ({
     setFilteredOptions(filtered);
   }, [searchTerm, options]);
 
+  // Cerrar select al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
   const selectedOption = options.find(option => option.id === value);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={selectRef}>
              <button
          type="button"
          onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -118,11 +140,30 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const multiSelectRef = useRef<HTMLDivElement>(null);
 
   const filteredOptions = options.filter(option =>
     option.nombre.toLowerCase().includes(searchTerm.toLowerCase()) &&
     !selectedValues.includes(option.id)
   );
+
+  // Cerrar select al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (multiSelectRef.current && !multiSelectRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
 
   const toggleOption = (optionId: string) => {
     if (selectedValues.includes(optionId)) {
@@ -137,7 +178,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={multiSelectRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -210,6 +251,10 @@ const MinutasContratoPage: React.FC = () => {
   const [menusZona, setMenusZona] = useState<any[]>([]);
   const [activeMenuTab, setActiveMenuTab] = useState<'estandar' | 'especial'>('estandar');
   const [zonaActiva, setZonaActiva] = useState<string>('');
+  const [unidadesConMenus, setUnidadesConMenus] = useState<UnidadConMenu[]>([]);
+  const [cargandoUnidades, setCargandoUnidades] = useState(false);
+  const [overlayVisible, setOverlayVisible] = useState<string | null>(null);
+  const [unidadesOverlay, setUnidadesOverlay] = useState<UnidadConMenu[]>([]);
 
   useEffect(() => {
     cargarContratos();
@@ -381,8 +426,113 @@ const MinutasContratoPage: React.FC = () => {
 
   const handleZonaClick = async (zonaId: string) => {
     setZonaActiva(zonaId);
-    await cargarMenusPorZona(zonaId);
+    setCargandoUnidades(true);
+    
+    try {
+      // Cargar menús dinámicos (código existente)
+      await cargarMenusPorZona(zonaId);
+      
+      // Cargar unidades reales con menús asignados
+      if (contratoSeleccionado?.id) {
+        console.log('🔍 Cargando unidades para zona:', zonaId, 'contrato:', contratoSeleccionado.id);
+        
+        const response = await MinutasService.getUnidadesConMenusPorZona(
+          contratoSeleccionado.id, 
+          parseInt(zonaId)
+        );
+        
+        if (response.data) {
+          setUnidadesConMenus(response.data);
+          console.log('✅ Unidades con menús cargadas:', response.data);
+          
+          // Debug: Log de cada unidad y sus menús
+          response.data.forEach((unidad, index) => {
+            console.log(`📋 Unidad ${index + 1}:`, {
+              id: unidad.unidad_id,
+              nombre: unidad.unidad_nombre,
+              menusCount: unidad.menus.length,
+              menus: unidad.menus.map(menu => ({
+                nombre: menu.nombre_receta,
+                tipo: menu.nombre_servicio,
+                ingredientes: menu.ingredientes
+              }))
+            });
+          });
+        } else if (response.error) {
+          console.error('❌ Error cargando unidades con menús:', response.error);
+          setUnidadesConMenus([]);
+        }
+      } else {
+        console.log('⚠️ No hay contrato seleccionado');
+        setUnidadesConMenus([]);
+      }
+    } catch (error) {
+      console.error('❌ Error inesperado:', error);
+      setUnidadesConMenus([]);
+    } finally {
+      setCargandoUnidades(false);
+    }
   };
+
+  const handleVerUnidades = async (zonaId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    // Si ya está abierto, cerrarlo
+    if (overlayVisible === zonaId) {
+      setOverlayVisible(null);
+      setUnidadesOverlay([]);
+      return;
+    }
+    
+    setOverlayVisible(zonaId);
+    setCargandoUnidades(true);
+    
+    try {
+      // Cargar unidades para el overlay
+      if (contratoSeleccionado?.id) {
+        const response = await MinutasService.getUnidadesConMenusPorZona(
+          contratoSeleccionado.id, 
+          parseInt(zonaId)
+        );
+        
+        if (response.data) {
+          setUnidadesOverlay(response.data);
+          console.log('✅ Unidades para overlay cargadas:', response.data);
+        } else if (response.error) {
+          console.error('❌ Error cargando unidades para overlay:', response.error);
+          setUnidadesOverlay([]);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error inesperado cargando unidades para overlay:', error);
+      setUnidadesOverlay([]);
+    } finally {
+      setCargandoUnidades(false);
+    }
+  };
+
+  const cerrarOverlay = () => {
+    setOverlayVisible(null);
+    setUnidadesOverlay([]);
+  };
+
+  // Cerrar overlay al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.zona-container') && !target.closest('.overlay-unidades')) {
+        cerrarOverlay();
+      }
+    };
+
+    if (overlayVisible) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [overlayVisible]);
 
   const handleGuardarMinutas = () => {
     if (zonasSeleccionadas.length === 0) {
@@ -572,269 +722,140 @@ const MinutasContratoPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Sección de Grupos/Zonas Seleccionados */}
-                      <div className="mb-6">
-                        <div className="bg-gray-100 border border-gray-300 rounded-lg p-6">
-                          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                            <MapPin className="w-5 h-5 text-teal-600" />
-                            Grupos/Zonas Seleccionados
-                          </h3>
-                          <div className="text-gray-600 mb-4 text-center">
-                            <span className="font-medium">{zonasSeleccionadas.length}</span> Grupos/Zonas de {zonasDisponibles.length}
-                          </div>
-                          
-                          {/* Tarjetas de Zonas Seleccionadas */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {zonasSeleccionadas.map((zonaId, index) => {
-                              const zona = zonasDisponibles.find(z => z.id === zonaId);
-                              if (!zona) return null;
-                              
-                              return (
-                                <div 
-                                  key={zonaId}
-                                  onClick={() => handleZonaClick(zonaId)}
-                                  className={`bg-cyan-600 text-white p-4 rounded-lg cursor-pointer transition-all duration-200 hover:bg-cyan-700 ${
-                                    zonaActiva === zonaId ? 'ring-4 ring-cyan-300 shadow-lg' : ''
-                                  }`}
-                                >
-                                  <div className="text-center">
-                                    <div className="font-bold text-lg mb-2">
-                                      NO PPL. {Math.floor(Math.random() * 9000) + 1000}
-                                    </div>
-                                    <div className="text-sm mb-3">
-                                      {zona.nombre}
-                                    </div>
-                                    <button 
-                                      className="bg-white text-cyan-600 px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        // Aquí puedes agregar la lógica para ver unidades
-                                      }}
-                                    >
-                                      Ver Unidades
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Sección de Menús de la Zona Seleccionada */}
-                      {zonaActiva ? (
-                        <div className="mb-6">
-                          <div className="bg-white border border-gray-300 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                              <UtensilsCrossed className="w-5 h-5 text-teal-600" />
-                              Menús de la Zona Seleccionada
+                      {/* Sección de Grupos/Zonas Seleccionados - Compacta */}
+                      {zonasSeleccionadas.length > 0 && (
+                        <div className="mb-4">
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-teal-600" />
+                              Zonas Seleccionadas ({zonasSeleccionadas.length})
                             </h3>
                             
-                            {/* Tabs para Menu Estándar y Especial */}
-                            <div className="flex border-b border-gray-200 mb-4">
-                              <button 
-                                onClick={() => setActiveMenuTab('estandar')}
-                                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                                  activeMenuTab === 'estandar' 
-                                    ? 'text-blue-600 border-b-2 border-blue-600' 
-                                    : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                              >
-                                MENU ESTANDAR
-                              </button>
-                              <button 
-                                onClick={() => setActiveMenuTab('especial')}
-                                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                                  activeMenuTab === 'especial' 
-                                    ? 'text-blue-600 border-b-2 border-blue-600' 
-                                    : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                              >
-                                MENU ESPECIAL
-                              </button>
-                            </div>
+                            {/* Lista compacta de zonas con overlay desplegable */}
+                            <div className="flex flex-wrap gap-2">
+                              {zonasSeleccionadas.map((zonaId) => {
+                                const zona = zonasDisponibles.find(z => z.id === zonaId);
+                                if (!zona) return null;
+                                
+                                return (
+                                  <div 
+                                    key={zonaId}
+                                    className={`zona-container relative bg-white border border-gray-300 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
+                                      zonaActiva === zonaId ? 'border-teal-500 bg-teal-50' : 'hover:border-gray-400'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2 min-w-0">
+                                      <div className="flex-1 min-w-0">
+                                        <div 
+                                          className="text-xs font-medium text-gray-800 truncate cursor-pointer"
+                                          onClick={() => handleZonaClick(zonaId)}
+                                          title="Hacer clic para ver calendario"
+                                        >
+                                          {zona.nombre}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          NO PPL. {Math.floor(Math.random() * 9000) + 1000}
+                                        </div>
+                                      </div>
+                                      <button 
+                                        className="bg-teal-100 text-teal-700 px-2 py-1 rounded text-xs font-medium hover:bg-teal-200 transition-colors flex items-center gap-1"
+                                        onClick={(e) => handleVerUnidades(zonaId, e)}
+                                        title="Ver unidades de servicio"
+                                      >
+                                        <Eye className="w-3 h-3" />
+                                        Ver Unidades
+                                      </button>
+                                    </div>
 
-                            {/* Header del Calendario */}
-                            <div className="bg-blue-100 p-4 rounded-t-lg">
-                              <div className="text-center text-blue-800 font-semibold mb-2">Ciclos del Contrato</div>
-                              <div className="text-center text-blue-900 text-lg font-bold mb-2">
-                                {contratoSeleccionado?.['No. Días'] || menusZona.length} Ciclos Configurados
-                              </div>
-                              <div className={`grid gap-2 text-sm text-blue-700`} style={{ gridTemplateColumns: `repeat(${menusZona.length}, 1fr)` }}>
-                                {menusZona.map((menu, index) => (
-                                  <div key={menu.id} className="text-center">
-                                    Ciclo {menu.ciclo}
+                                    {/* Overlay desplegable */}
+                                    {overlayVisible === zonaId && (
+                                      <div className="overlay-unidades absolute top-full left-0 mt-1 z-50 bg-white border border-blue-200 rounded-lg shadow-lg min-w-64 max-w-80 animate-in slide-in-from-top-2 duration-200">
+                                        {/* Header del overlay */}
+                                        <div className="bg-blue-600 text-white px-3 py-2 rounded-t-lg">
+                                          <h4 className="text-sm font-semibold flex items-center gap-2">
+                                            <Users className="w-4 h-4" />
+                                            Unidades de Servicio
+                                          </h4>
+                                        </div>
+
+                                        {/* Contenido del overlay */}
+                                        <div className="p-2 max-h-64 overflow-y-auto">
+                                          {cargandoUnidades ? (
+                                            <div className="text-center py-4">
+                                              <div className="text-gray-500">
+                                                <Users className="w-6 h-6 mx-auto mb-2 text-gray-400 animate-pulse" />
+                                                <p className="text-xs">Cargando unidades...</p>
+                                              </div>
+                                            </div>
+                                          ) : unidadesOverlay.length > 0 ? (
+                                            <div className="space-y-1">
+                                              {unidadesOverlay.map((unidad) => (
+                                                <div key={unidad.unidad_id} className="flex items-center gap-2 text-xs text-blue-800 hover:bg-blue-50 p-1 rounded">
+                                                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
+                                                  <span className="font-medium">NO PPL.</span>
+                                                  <Users className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                                                  <span className="font-semibold">{Math.floor(Math.random() * 9000) + 1000}</span>
+                                                  <div className="ml-auto text-blue-700 truncate">
+                                                    LA PICOTA - {unidad.unidad_nombre.toUpperCase()}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <div className="text-center py-4">
+                                              <div className="text-gray-500">
+                                                <Users className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                                                <p className="text-xs">No hay unidades</p>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Tabla de Menús */}
-                            <div className="border border-gray-300 rounded-b-lg overflow-hidden">
-                              <table className="w-full">
-                                <thead>
-                                  <tr className="bg-gray-50">
-                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-r border-gray-300">
-                                      COMPONENTE/MENU
-                                    </th>
-                                    {menusZona.map((menu, index) => (
-                                      <th 
-                                        key={menu.id} 
-                                        className={`px-4 py-3 text-center text-sm font-semibold text-gray-700 ${
-                                          index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                        }`}
-                                      >
-                                        Menu {menu.ciclo}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {/* DESAYUNO */}
-                                  <tr>
-                                    <td className="px-4 py-3 bg-green-100 font-semibold text-gray-800 border-r border-gray-300" rowSpan={6}>
-                                      DESAYUNO
-                                    </td>
-                                    {menusZona.map((menu, index) => {
-                                      const desayuno = menu.componentes.find(c => c.nombre === 'DESAYUNO');
-                                      return (
-                                        <td 
-                                          key={menu.id} 
-                                          className={`px-4 py-2 text-center text-sm bg-blue-50 ${
-                                            index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {desayuno?.items[0]?.fruta || '-'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                  <tr>
-                                    {menusZona.map((menu, index) => {
-                                      const desayuno = menu.componentes.find(c => c.nombre === 'DESAYUNO');
-                                      return (
-                                        <td 
-                                          key={menu.id} 
-                                          className={`px-4 py-2 text-center text-sm bg-blue-50 ${
-                                            index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {desayuno?.items[0]?.cereal || '-'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                  <tr>
-                                    {menusZona.map((menu, index) => {
-                                      const desayuno = menu.componentes.find(c => c.nombre === 'DESAYUNO');
-                                      return (
-                                        <td 
-                                          key={menu.id} 
-                                          className={`px-4 py-2 text-center text-sm bg-blue-50 ${
-                                            index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {desayuno?.items[0]?.bebida || '-'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                  <tr>
-                                    {menusZona.map((menu, index) => {
-                                      const desayuno = menu.componentes.find(c => c.nombre === 'DESAYUNO');
-                                      return (
-                                        <td 
-                                          key={menu.id} 
-                                          className={`px-4 py-2 text-center text-sm bg-blue-50 ${
-                                            index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {desayuno?.items[0]?.sopa || '-'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                  <tr>
-                                    {menusZona.map((menu, index) => {
-                                      const desayuno = menu.componentes.find(c => c.nombre === 'DESAYUNO');
-                                      return (
-                                        <td 
-                                          key={menu.id} 
-                                          className={`px-4 py-2 text-center text-sm bg-blue-50 ${
-                                            index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {desayuno?.items[0]?.proteina || '-'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                  <tr>
-                                    {menusZona.map((menu, index) => (
-                                      <td 
-                                        key={menu.id} 
-                                        className={`px-4 py-2 text-center text-sm bg-blue-50 ${
-                                          index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                        }`}
-                                      >
-                                        -
-                                      </td>
-                                    ))}
-                                  </tr>
-
-                                  {/* ALMUERZO */}
-                                  <tr>
-                                    <td className="px-4 py-3 bg-orange-100 font-semibold text-gray-800 border-r border-gray-300" rowSpan={3}>
-                                      ALMUERZO
-                                    </td>
-                                    {menusZona.map((menu, index) => {
-                                      const almuerzo = menu.componentes.find(c => c.nombre === 'ALMUERZO');
-                                      return (
-                                        <td 
-                                          key={menu.id} 
-                                          className={`px-4 py-2 text-center text-sm bg-orange-50 ${
-                                            index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {almuerzo?.items[0]?.bebida || '-'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                  <tr>
-                                    {menusZona.map((menu, index) => {
-                                      const almuerzo = menu.componentes.find(c => c.nombre === 'ALMUERZO');
-                                      return (
-                                        <td 
-                                          key={menu.id} 
-                                          className={`px-4 py-2 text-center text-sm bg-orange-50 ${
-                                            index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {almuerzo?.items[0]?.sopa || '-'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                  <tr>
-                                    {menusZona.map((menu, index) => {
-                                      const almuerzo = menu.componentes.find(c => c.nombre === 'ALMUERZO');
-                                      return (
-                                        <td 
-                                          key={menu.id} 
-                                          className={`px-4 py-2 text-center text-sm bg-orange-50 ${
-                                            index < menusZona.length - 1 ? 'border-r border-gray-300' : ''
-                                          }`}
-                                        >
-                                          {almuerzo?.items[0]?.proteina || '-'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                </tbody>
-                              </table>
+                                );
+                              })}
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Sección de Calendario de Menús */}
+                      {zonaActiva ? (
+                        <div className="mb-6">
+                          {cargandoUnidades ? (
+                            <div className="bg-white border border-gray-300 rounded-lg p-8 text-center">
+                              <div className="text-gray-500">
+                                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                                  <UtensilsCrossed className="w-8 h-8 text-gray-400 animate-pulse" />
+                                </div>
+                                <h4 className="text-lg font-semibold text-gray-700 mb-2">
+                                  Cargando menús...
+                                </h4>
+                                <p className="text-sm text-gray-600">
+                                  Obteniendo unidades de servicio y menús asignados
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <MenuCalendarDetailed
+                              zonaId={zonaActiva}
+                              zonaNombre={zonasDisponibles.find(z => z.id === zonaActiva)?.nombre || 'Zona'}
+                              fechaEjecucion={contratoSeleccionado?.['Ejecucion:DT:colspan:[Fechas del Contrato]'] || new Date().toISOString().split('T')[0]}
+                              unidadesMenus={unidadesConMenus.map(unidad => ({
+                                unidad_id: unidad.unidad_id,
+                                unidad_nombre: unidad.unidad_nombre,
+                                fecha_inicio: unidad.menus[0]?.fecha_asignacion || new Date().toISOString().split('T')[0],
+                                menus: unidad.menus.map(menu => ({
+                                  id: menu.id_producto,
+                                  nombre: menu.nombre_receta,
+                                  tipo: menu.nombre_servicio as 'DESAYUNO' | 'ALMUERZO' | 'CENA' | 'REFRIGERIO',
+                                  codigo: menu.codigo,
+                                  ingredientes: menu.ingredientes || []
+                                }))
+                              }))}
+                            />
+                          )}
                         </div>
                       ) : zonasSeleccionadas.length > 0 ? (
                         <div className="mb-6">
@@ -847,7 +868,7 @@ const MinutasContratoPage: React.FC = () => {
                                 Selecciona una Zona
                               </h4>
                               <p className="text-sm text-blue-600">
-                                Haz clic en una de las zonas seleccionadas arriba para visualizar sus menús
+                                Haz clic en una de las zonas seleccionadas arriba para visualizar el calendario de menús
                               </p>
                             </div>
                           </div>
@@ -869,6 +890,7 @@ const MinutasContratoPage: React.FC = () => {
           
         </CardContent>
       </Card>
+
     </div>
   );
 };

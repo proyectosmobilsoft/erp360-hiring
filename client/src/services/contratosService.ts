@@ -5,6 +5,7 @@ export interface ContratoView {
   id: number;
   'Sede:width[300]': string;
   'No Contrato': string;
+  'Objeto': string;
   'Entidad / Contratante:FLT': string;
   'NIT': string;
   'Inicial:DT:colspan:[Fechas del Contrato]:width[110]': string;
@@ -41,6 +42,7 @@ export class ContratosService {
         .select(`
           id,
           no_contrato,
+          objetivo,
           fecha_inicial,
           fecha_final,
           fecha_arranque,
@@ -59,6 +61,7 @@ export class ContratosService {
         id: contrato.id,
         'Sede:width[300]': contrato.gen_sucursales?.nombre || '',
         'No Contrato': contrato.no_contrato || '',
+        'Objeto': contrato.objetivo || '',
         'Entidad / Contratante:FLT': contrato.con_terceros?.nombre_tercero || '',
         'NIT': contrato.con_terceros?.documento || '',
         'Inicial:DT:colspan:[Fechas del Contrato]:width[110]': contrato.fecha_inicial || '',
@@ -233,6 +236,140 @@ export class ContratosService {
       };
     } catch (error) {
       console.error('Error inactivando contrato:', error);
+      return {
+        data: null,
+        error
+      };
+    }
+  }
+
+  /**
+   * Verifica si un contrato tiene dependencias asociadas (zonas, minutas, asignaciones de productos)
+   */
+  static async verificarZonasAsociadas(id: number): Promise<{ tieneZonas: boolean; count: number; detalles: { zonas: number; minutas: number; productos: number } }> {
+    try {
+      // Verificar zonas
+      const { count: countZonas } = await supabase
+        .from('prod_zonas_by_contrato')
+        .select('*', { count: 'exact' })
+        .eq('id_contrato', id);
+
+      // Verificar minutas
+      const { count: countMinutas } = await supabase
+        .from('prod_minutas_contratos')
+        .select('*', { count: 'exact' })
+        .eq('id_contrato', id);
+
+      // Verificar asignaciones de productos
+      const { count: countProductos } = await supabase
+        .from('inv_productos_unidad_servicio')
+        .select('*', { count: 'exact' })
+        .eq('id_contrato', id);
+
+      const totalDependencias = (countZonas || 0) + (countMinutas || 0) + (countProductos || 0);
+      const detalles = {
+        zonas: countZonas || 0,
+        minutas: countMinutas || 0,
+        productos: countProductos || 0
+      };
+
+      return { 
+        tieneZonas: totalDependencias > 0, 
+        count: totalDependencias,
+        detalles 
+      };
+    } catch (error) {
+      console.error('Error verificando dependencias asociadas:', error);
+      return { 
+        tieneZonas: false, 
+        count: 0,
+        detalles: { zonas: 0, minutas: 0, productos: 0 }
+      };
+    }
+  }
+
+  /**
+   * Elimina un contrato y todas sus dependencias (zonas, minutas, asignaciones de productos)
+   */
+  static async eliminarContratoConZonas(id: number): Promise<any> {
+    try {
+      console.log('🗑️ Iniciando eliminación completa del contrato:', id);
+
+      // 1. Eliminar asignaciones de productos a unidades de servicio
+      console.log('📦 Eliminando asignaciones de productos...');
+      const { data: productosEliminados, error: errorProductos } = await supabase
+        .from('inv_productos_unidad_servicio')
+        .delete()
+        .eq('id_contrato', id)
+        .select();
+
+      if (errorProductos) {
+        console.error('❌ Error eliminando asignaciones de productos:', errorProductos);
+        return {
+          data: null,
+          error: errorProductos
+        };
+      }
+      console.log('✅ Asignaciones de productos eliminadas:', productosEliminados?.length || 0);
+
+      // 2. Eliminar minutas asociadas
+      console.log('📄 Eliminando minutas asociadas...');
+      const { data: minutasEliminadas, error: errorMinutas } = await supabase
+        .from('prod_minutas_contratos')
+        .delete()
+        .eq('id_contrato', id)
+        .select();
+
+      if (errorMinutas) {
+        console.error('❌ Error eliminando minutas asociadas:', errorMinutas);
+        return {
+          data: null,
+          error: errorMinutas
+        };
+      }
+      console.log('✅ Minutas eliminadas:', minutasEliminadas?.length || 0);
+      console.log('📄 Datos de minutas eliminadas:', minutasEliminadas);
+
+      // 3. Eliminar las zonas asociadas
+      console.log('🗺️ Eliminando zonas asociadas...');
+      const { data: zonasEliminadas, error: errorZonas } = await supabase
+        .from('prod_zonas_by_contrato')
+        .delete()
+        .eq('id_contrato', id)
+        .select();
+
+      if (errorZonas) {
+        console.error('❌ Error eliminando zonas asociadas:', errorZonas);
+        return {
+          data: null,
+          error: errorZonas
+        };
+      }
+      console.log('✅ Zonas eliminadas:', zonasEliminadas?.length || 0);
+
+      // 4. Finalmente, eliminar el contrato
+      console.log('📋 Eliminando contrato principal...');
+      const { data: contratoEliminado, error: errorContrato } = await supabase
+        .from('prod_contratos')
+        .delete()
+        .eq('id', id)
+        .select();
+
+      if (errorContrato) {
+        console.error('❌ Error eliminando contrato:', errorContrato);
+        return {
+          data: null,
+          error: errorContrato
+        };
+      }
+      console.log('✅ Contrato eliminado:', contratoEliminado);
+
+      return {
+        data: contratoEliminado,
+        error: null
+      };
+    } catch (error) {
+      console.error('❌ Error inesperado eliminando contrato con dependencias:', error);
       return {
         data: null,
         error
