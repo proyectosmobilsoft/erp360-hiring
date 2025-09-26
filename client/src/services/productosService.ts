@@ -17,13 +17,16 @@ export interface ComponenteMenu {
 }
 
 export interface RecetaAgrupada {
-  id: string;
+  id: number; // ID de la tabla inv_producto_by_unidades
   id_producto: number;
-  tipo_zona: string;
+  unidad_servicio: string; // Nombre de la unidad de servicio
+  id_unidad_servicio: number; // ID de la unidad de servicio
   nombre_servicio: string;
+  id_nombre_servicio: number; // ID del nombre de servicio
   codigo: string;
   nombre_receta: string;
   orden: number;
+  unidades_servicio?: string[];
 }
 
 interface ProductosResponse {
@@ -128,16 +131,24 @@ export class ProductosService {
       const { data: productosData, error } = await supabase
         .from('inv_productos_unidad_servicio')
         .select(`
-          inv_productos!inner(
+          id,
+          id_producto_by_unidad,
+          id_unidad_servicio,
+          inv_producto_by_unidades!inner(
             id,
-            nombre,
-            tipo_menu,
-            inv_categorias!inner(nombre),
-            inv_sublineas!inner(
+            id_producto,
+            id_unidad_servicio,
+            inv_productos!inner(
+              id,
               nombre,
-              prod_componentes_menus!inner(
-                id,
-                nombre
+              tipo_menu,
+              inv_categorias!inner(nombre),
+              inv_sublineas!inner(
+                nombre,
+                prod_componentes_menus!inner(
+                  id,
+                  nombre
+                )
               )
             )
           )
@@ -209,11 +220,13 @@ export class ProductosService {
   /**
    * Obtiene recetas agrupadas por tipo de zona y nombre de servicio
    */
-  static async getRecetasAgrupadas(): Promise<RecetasResponse> {
+  static async getRecetasAgrupadas(contratoId?: number): Promise<RecetasResponse> {
     try {
       console.log('🔍 Cargando recetas agrupadas...');
       
-      const { data, error } = await supabase.rpc('get_recetas_agrupadas');
+      const { data, error } = await supabase.rpc('get_recetas_agrupadas_with_units', {
+        p_contrato_id: contratoId || null
+      });
 
       if (error) {
         console.error('Error obteniendo recetas agrupadas:', error);

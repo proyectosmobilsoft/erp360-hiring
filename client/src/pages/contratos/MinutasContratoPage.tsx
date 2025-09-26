@@ -553,7 +553,10 @@ const MinutasContratoPage: React.FC = () => {
            return (
       <div className="container mx-auto p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Datos del Contrato</h1>
+          <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2 mb-2">
+            <FileText className="w-8 h-8 text-cyan-600" />
+            Datos del Contrato
+          </h1>
           <p className="text-gray-600">Información y configuración del contrato seleccionado</p>
         </div>
 

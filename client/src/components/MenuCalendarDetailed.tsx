@@ -101,18 +101,55 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     });
   };
 
-  // Función para obtener las fechas de la semana
+  // Función para obtener las fechas de 4 semanas (28 días)
   const getWeekDates = (startDate: string) => {
     const start = new Date(startDate);
     const dates = [];
     
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(start);
-      date.setDate(start.getDate() + i);
+    // Ajustar al lunes de la semana actual
+    const dayOfWeek = start.getDay();
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const mondayStart = new Date(start);
+    mondayStart.setDate(start.getDate() + daysToMonday);
+    
+    // Generar 28 días (4 semanas)
+    for (let i = 0; i < 28; i++) {
+      const date = new Date(mondayStart);
+      date.setDate(mondayStart.getDate() + i);
       dates.push(date);
     }
     
     return dates;
+  };
+
+  // Función para obtener las semanas agrupadas
+  const getWeeksGrouped = (startDate: string) => {
+    const start = new Date(startDate);
+    const weeks = [];
+    let currentWeekStart = new Date(start);
+    
+    // Ajustar al lunes de la semana actual
+    const dayOfWeek = start.getDay();
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    currentWeekStart.setDate(start.getDate() + daysToMonday);
+    
+    let weekNumber = 1;
+    
+    // Generar 4 semanas (28 días)
+    for (let week = 0; week < 4; week++) {
+      const weekDates = [];
+      for (let day = 0; day < 7; day++) {
+        const date = new Date(currentWeekStart);
+        date.setDate(currentWeekStart.getDate() + (week * 7) + day);
+        weekDates.push(date);
+      }
+      weeks.push({
+        weekNumber: weekNumber++,
+        dates: weekDates
+      });
+    }
+    
+    return weeks;
   };
 
   // Función para obtener el nombre del día en español
@@ -128,6 +165,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   };
 
   const weekDates = getWeekDates(fechaEjecucion);
+  const weeksGrouped = getWeeksGrouped(fechaEjecucion);
 
   return (
     <Card className="w-full">
@@ -171,42 +209,65 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-gray-300">
-                      {/* Header de la semana */}
-                      <thead>
-                        <tr className="bg-blue-100">
-                          <th className="border border-gray-300 p-3 text-left text-sm font-semibold text-blue-800">
-                            SEMANAS
-                          </th>
-                          <th className="border border-gray-300 p-3 text-left text-sm font-semibold text-blue-800">
-                            FECHAS
-                          </th>
-                          {weekDates.map((date, i) => (
-                            <th key={i} className="border border-gray-300 p-3 text-center text-sm font-semibold text-blue-800">
-                              {`${getDayName(date)} ${date.getDate()}/${getMonthName(date)}`}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
+                     <table className="w-full border-collapse border border-gray-300">
+                       {/* Header de semanas agrupadas */}
+                       <thead>
+                         <tr className="bg-gray-100">
+                           <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-gray-800" colSpan={2}>
+                             SEMANAS
+                           </th>
+                           {weeksGrouped.map((week, weekIndex) => {
+                             const weekColors = [
+                               'bg-blue-200 text-blue-900',
+                               'bg-green-200 text-green-900', 
+                               'bg-purple-200 text-purple-900',
+                               'bg-orange-200 text-orange-900'
+                             ];
+                             return (
+                               <th key={weekIndex} className={`border border-gray-300 p-2 text-center text-xs font-semibold ${weekColors[weekIndex]}`} colSpan={7}>
+                                 SEMANA {week.weekNumber}
+                               </th>
+                             );
+                           })}
+                         </tr>
+                       </thead>
 
-                      {/* Header de menús */}
-                      <thead>
-                        <tr className="bg-blue-50">
-                          <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700" rowSpan={2}>
-                            COMPONENTE/MENU
-                          </th>
-                          <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700" rowSpan={2}>
-                            DETALLE
-                          </th>
-                          {weekDates.map((date, i) => (
-                            <th key={i} className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700">
-                              {getDayName(date).charAt(0).toUpperCase() + getDayName(date).slice(1)}
-                              <br />
-                              <span className="text-xs font-normal">{date.getDate()}/{getMonthName(date)}</span>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
+                       {/* Header de días individuales */}
+                       <thead>
+                         <tr className="bg-gray-50">
+                           <th className="border border-gray-300 p-3 text-left text-sm font-semibold text-gray-700" colSpan={2}>
+                             DÍAS
+                           </th>
+                           {weekDates.map((date, i) => {
+                             const weekIndex = Math.floor(i / 7);
+                             const dayColors = [
+                               'bg-blue-100 text-blue-800',
+                               'bg-green-100 text-green-800', 
+                               'bg-purple-100 text-purple-800',
+                               'bg-orange-100 text-orange-800'
+                             ];
+                             return (
+                               <th key={i} className={`border border-gray-300 p-3 text-center text-xs font-semibold whitespace-nowrap ${dayColors[weekIndex]}`}>
+                                 {`${getDayName(date)} ${date.getDate()}/${getMonthName(date)}`}
+                               </th>
+                             );
+                           })}
+                         </tr>
+                       </thead>
+
+                       {/* Header de menús individuales */}
+                       <thead>
+                         <tr className="bg-blue-50">
+                           <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700" colSpan={2}>
+                             COMPONENTE/MENU
+                           </th>
+                           {weekDates.map((date, i) => (
+                             <th key={i} className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700 w-64 min-w-64">
+                               Menu {i + 1}
+                             </th>
+                           ))}
+                         </tr>
+                       </thead>
 
                       <tbody>
                         {/* Mostrar menús organizados por fecha */}
@@ -216,28 +277,39 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                             <React.Fragment key={`menu-${menu.id}-${menuIndex}`}>
                               {/* Fila del menú */}
                               <tr>
-                                <td className={`border border-gray-300 p-3 font-semibold ${getMenuTypeColor(menu.tipo.toUpperCase())}`}>
+                                <td className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(menu.tipo.toUpperCase())}`}>
                                   <div className="flex items-center gap-2">
                                     {getMenuIcon(menu.tipo.toUpperCase())}
                                     {menu.tipo.toUpperCase()}
                                   </div>
                                 </td>
-                                <td className="border border-gray-300 p-2 text-center text-xs font-medium text-gray-700 bg-gray-50">
-                                  {menu.nombre}
-                                </td>
-                                {weekDates.map((date, i) => {
-                                  // Mostrar ingredientes solo en la columna correspondiente al orden del menú
-                                  if (i === menuIndex) {
-                                    return (
-                                      <td key={i} className="border border-gray-300 p-2 text-center text-xs bg-gray-50">
-                                        <div className="grid grid-cols-1 gap-1 max-w-32">
+                                 <td className={`border border-gray-300 p-2 text-center text-xs font-medium w-48 min-w-48 ${getMenuTypeColor(menu.tipo.toUpperCase())}`}>
+                                   {menu.nombre}
+                                 </td>
+                                 {weekDates.map((date, i) => {
+                                   // Mostrar ingredientes solo en la columna correspondiente al orden del menú
+                                   // Para 28 días, distribuimos los menús cíclicamente
+                                   const menuIndexForDay = menuIndex % unidad.menus.length;
+                                   const weekIndex = Math.floor(i / 7);
+                                   const weekBackgroundColors = [
+                                     'bg-blue-50',
+                                     'bg-green-50', 
+                                     'bg-purple-50',
+                                     'bg-orange-50'
+                                   ];
+                                   
+                                   if (i === menuIndexForDay || (unidad.menus.length === 1 && i === menuIndex)) {
+                                     return (
+                                       <td key={i} className={`border border-gray-300 p-0 text-xs w-64 min-w-64 ${weekBackgroundColors[weekIndex]}`}>
+                                        <div className="flex flex-col h-full">
                                           {menu.ingredientes.map((ingrediente, ingredienteIndex) => (
                                             <div 
                                               key={ingredienteIndex}
-                                              className="bg-white border border-gray-200 rounded px-2 py-1 text-xs"
+                                              className={`flex-1 p-2 border-b border-gray-300 last:border-b-0 ${getMenuTypeColor(menu.tipo.toUpperCase())} text-center font-medium text-xs`}
+                                              style={{ fontSize: '0.65rem' }}
                                               title={ingrediente}
                                             >
-                                              {ingrediente.length > 15 ? `${ingrediente.substring(0, 15)}...` : ingrediente}
+                                              {ingrediente}
                                             </div>
                                           ))}
                                         </div>
@@ -246,9 +318,9 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                   } else {
                                     // Columnas vacías para otros días
                                     return (
-                                      <td key={i} className="border border-gray-300 p-2 text-center text-xs">
-                                        -
-                                      </td>
+                                       <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${weekBackgroundColors[weekIndex]}`}>
+                                         -
+                                       </td>
                                     );
                                   }
                                 })}

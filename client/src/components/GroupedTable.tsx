@@ -31,6 +31,8 @@ export interface GroupedTableProps {
   selectedItems?: Set<string | number>;
   showCheckboxes?: boolean;
   groupIcons?: Record<string, React.ReactNode>;
+  groupDisplayNames?: (groupValue: string, field: string) => string;
+  isItemSelected?: (item: GroupedTableData) => boolean;
 }
 
 interface GroupData {
@@ -55,20 +57,23 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
   onItemSelect,
   selectedItems = new Set(),
   showCheckboxes = false,
-  groupIcons = {}
+  groupIcons = {},
+  groupDisplayNames,
+  isItemSelected
 }) => {
   // Estado para controlar grupos expandidos/colapsados
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     new Set(defaultExpandedGroups)
   );
 
+  // Definir campos de agrupación
+  const groupFields = Array.isArray(groupBy) ? groupBy : [groupBy];
+
   // Procesar datos agrupados con soporte para múltiples niveles
   const groupedData = useMemo((): GroupData[] => {
     if (data.length === 0) {
       return [];
     }
-
-    const groupFields = Array.isArray(groupBy) ? groupBy : [groupBy];
 
     // Función recursiva para crear grupos anidados
     const createGroups = (items: GroupedTableData[], level: number): GroupData[] => {
@@ -133,8 +138,8 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
     }
   };
 
-  const isItemSelected = (item: GroupedTableData) => {
-    return selectedItems.has(item.id);
+  const checkItemSelected = (item: GroupedTableData) => {
+    return isItemSelected ? isItemSelected(item) : selectedItems.has(item.id);
   };
 
   // Función para obtener todos los items de un grupo (incluyendo subgrupos)
@@ -157,13 +162,13 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
   // Función para verificar si todos los items de un grupo están seleccionados
   const areAllItemsSelected = (group: GroupData): boolean => {
     const allItems = getAllItemsFromGroup(group);
-    return allItems.length > 0 && allItems.every(item => selectedItems.has(item.id));
+    return allItems.length > 0 && allItems.every(item => checkItemSelected(item));
   };
 
   // Función para verificar si algunos items de un grupo están seleccionados
   const areSomeItemsSelected = (group: GroupData): boolean => {
     const allItems = getAllItemsFromGroup(group);
-    return allItems.some(item => selectedItems.has(item.id));
+    return allItems.some(item => checkItemSelected(item));
   };
 
   const renderCellContent = (column: any, item: GroupedTableData) => {
@@ -174,7 +179,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
   };
 
   // Función recursiva para renderizar grupos y subgrupos
-  const renderGroup = (group: GroupData, level: number = 0) => {
+  const renderGroup = (group: GroupData, level: number = 0, groupFields: string[]) => {
     const groupKey = `${group.grupo}-${level}`;
     const isExpanded = expandedGroups.has(groupKey);
     const hasSubGroups = group.subGroups && group.subGroups.length > 0;
@@ -252,7 +257,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                       </div>
                     )}
                     <span className={`font-semibold ${currentStyle.text} group-hover:text-cyan-700 transition-colors duration-200 text-xs flex-1 text-left`}>
-                      {group.grupo} - Total ({group.totalItems})
+                      {groupDisplayNames ? groupDisplayNames(group.grupo, groupFields[level]) : group.grupo} - Total ({group.totalItems})
                     </span>
                   </div>
                 </div>
@@ -266,7 +271,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
           <>
             {hasSubGroups ? (
               // Renderizar subgrupos
-              group.subGroups!.map(subGroup => renderGroup(subGroup, level + 1))
+              group.subGroups!.map(subGroup => renderGroup(subGroup, level + 1, groupFields))
             ) : (
               // Renderizar items del grupo
               group.items.map((item, index) => (
@@ -292,7 +297,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                       <div style={{ marginLeft: `${(level + 1) * 16}px` }}>
                         <input
                           type="checkbox"
-                          checked={isItemSelected(item)}
+                          checked={checkItemSelected(item)}
                           onChange={(e) => {
                             e.stopPropagation();
                             handleItemSelect(item, e.target.checked);
@@ -337,11 +342,11 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                 <TableHead className="font-semibold text-gray-700 text-xs py-1 px-2 w-4">
                   <input
                     type="checkbox"
-                    checked={data.length > 0 && data.every(item => selectedItems.has(item.id))}
+                    checked={data.length > 0 && data.every(item => checkItemSelected(item))}
                     ref={(input) => {
                       if (input) {
-                        const someSelected = data.some(item => selectedItems.has(item.id));
-                        const allSelected = data.every(item => selectedItems.has(item.id));
+                        const someSelected = data.some(item => checkItemSelected(item));
+                        const allSelected = data.every(item => checkItemSelected(item));
                         input.indeterminate = someSelected && !allSelected;
                       }
                     }}
@@ -370,7 +375,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                 </TableCell>
               </TableRow>
             ) : (
-              groupedData.map((grupo) => renderGroup(grupo))
+              groupedData.map((grupo) => renderGroup(grupo, 0, groupFields))
             )}
           </TableBody>
         </Table>

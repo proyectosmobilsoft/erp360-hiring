@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { supabase } from '../../services/supabaseClient';
 import {
   FileText,
   MapPin,
@@ -186,16 +187,15 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
               return (
                 <Badge key={id} variant="secondary" className="text-xs hover:bg-cyan-100 hover:text-cyan-800">
                   {option?.nombre}
-                  <button
-                    type="button"
+                  <span
                     onClick={(e) => {
                       e.stopPropagation();
                       removeOption(id);
                     }}
-                    className="ml-1 hover:text-red-600"
+                    className="ml-1 hover:text-red-600 cursor-pointer"
                   >
                     <X className="w-3 h-3" />
-                  </button>
+                  </span>
                 </Badge>
               );
             })}
@@ -248,13 +248,11 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                           borderLeft: isSelected ? '4px solid #06b6d4' : 'none'
                         }}
                         onMouseEnter={(e) => {
-                          console.log('Mouse enter - isSelected:', isSelected, 'option:', option.nombre);
                           if (!isSelected) {
                             e.currentTarget.style.backgroundColor = '#f3f4f6';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          console.log('Mouse leave - isSelected:', isSelected, 'option:', option.nombre);
                           if (!isSelected) {
                             e.currentTarget.style.backgroundColor = 'transparent';
                           }
@@ -302,10 +300,88 @@ const AsignarMenusPage: React.FC = () => {
   const [recetasAgrupadas, setRecetasAgrupadas] = useState<RecetaAgrupada[]>([]);
   const [menusAsignados, setMenusAsignados] = useState<Producto[]>([]);
   const [selectedRecetas, setSelectedRecetas] = useState<Set<string>>(new Set());
+  const [unidadesCargadas, setUnidadesCargadas] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState('');
   const [asignacionesUnidades, setAsignacionesUnidades] = useState<AsignacionUnidad[]>([]);
+  
+  // Función para eliminar duplicados del array de asignaciones
+  const eliminarDuplicadosAsignaciones = (asignaciones: AsignacionUnidad[]): AsignacionUnidad[] => {
+    const seen = new Set<string>();
+    const resultado = [];
+    
+    for (const asignacion of asignaciones) {
+      const key = `${asignacion.unidadId}-${asignacion.contratoId}`;
+      if (seen.has(key)) {
+        console.log('🗑️ Eliminando duplicado:', key);
+        // Si ya existe, mantener la última (más reciente)
+        const index = resultado.findIndex(a => `${a.unidadId}-${a.contratoId}` === key);
+        if (index !== -1) {
+          resultado[index] = asignacion; // Reemplazar con la más reciente
+          console.log('🔄 Reemplazando asignación existente con la más reciente:', key);
+        }
+      } else {
+        seen.add(key);
+        resultado.push(asignacion);
+        console.log('✅ Agregando nueva asignación:', key);
+      }
+    }
+    
+    return resultado;
+  };
+  
+  // Debug: Log del estado inicial
+  console.log('🏁 Estado inicial selectedRecetas:', Array.from(selectedRecetas));
+  
+  // Asegurar que el estado esté completamente limpio al montar el componente
+  useEffect(() => {
+    console.log('🧹 Limpiando estado inicial de selectedRecetas');
+    setSelectedRecetas(new Set());
+  }, []);
+
+  // Limpiar duplicados automáticamente cada vez que cambie asignacionesUnidades
+  useEffect(() => {
+    if (asignacionesUnidades.length > 0) {
+      const sinDuplicados = eliminarDuplicadosAsignaciones(asignacionesUnidades);
+      if (sinDuplicados.length !== asignacionesUnidades.length) {
+        console.log('🧹 Limpiando duplicados automáticamente:', asignacionesUnidades.length, '->', sinDuplicados.length);
+        setAsignacionesUnidades(sinDuplicados);
+      }
+    }
+  }, [asignacionesUnidades]);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Función para generar un ID único que combine id_relacion + unidad_servicio
+  const generarIdUnico = (idRelacion: number, unidadServicio: string): string => {
+    return `${idRelacion}-${unidadServicio}`;
+  };
+
+  // Función para extraer id_relacion del ID único
+  const extraerIdRelacion = (idUnico: string): number => {
+    return parseInt(idUnico.split('-')[0]);
+  };
+
+  // Función para extraer id_producto del ID único (necesario para compatibilidad)
+  const extraerIdProducto = (idUnico: string): number => {
+    const idRelacion = extraerIdRelacion(idUnico);
+    // Buscar el id_producto correspondiente en recetasAgrupadas
+    const receta = recetasAgrupadas.find(r => r.id === idRelacion);
+    return receta ? receta.id_producto : 0;
+  };
+
+  // Función para extraer unidad_servicio del ID único
+  const extraerUnidadServicio = (idUnico: string): string => {
+    const partes = idUnico.split('-');
+    return partes.slice(1).join('-'); // En caso de que la unidad tenga guiones
+  };
+
+  // Función para verificar si un item está seleccionado basándose en su ID único
+  const isItemSelected = useCallback((item: GroupedTableData): boolean => {
+    const idUnico = generarIdUnico(Number(item.id), item.unidad_servicio);
+    const isSelected = selectedRecetas.has(idUnico);
+    
+    return isSelected;
+  }, [selectedRecetas]);
 
   // Función para verificar si una receta está asignada a alguna unidad
   const isRecetaAsignada = (recetaId: number): boolean => {
@@ -315,22 +391,43 @@ const AsignarMenusPage: React.FC = () => {
   };
 
   // Función para transformar recetas agrupadas a datos de tabla
-  const transformRecetasToTableData = (recetas: RecetaAgrupada[]): GroupedTableData[] => {
-    return recetas.map((receta, index) => ({
-      id: `${receta.id_producto}-${receta.tipo_zona}-${receta.nombre_servicio}-${index}`, // ID único usando id_producto real
+  const transformRecetasToTableData = useCallback((recetas: RecetaAgrupada[]): GroupedTableData[] => {
+    return recetas.map((receta, index) => {
+      // Crear un hash único para la unidad de servicio para usar en el ID del nivel 2
+      const unidadHash = receta.unidad_servicio.replace(/\s+/g, '_').toLowerCase();
+      
+      return {
+        id: receta.id, // Usar el ID de la tabla inv_producto_by_unidades
       codigo: receta.codigo,
       nombre: receta.nombre_receta,
-      tipo_zona: receta.tipo_zona, // Primer nivel de agrupación
-      nombre_servicio: receta.nombre_servicio, // Segundo nivel de agrupación
+        unidad_servicio: receta.unidad_servicio, // Mostrar solo el nombre de la unidad sin ID
+        id_unidad_servicio: receta.id_unidad_servicio, // ID de la unidad de servicio
+        nombre_servicio: receta.nombre_servicio, // Mostrar solo el nombre del servicio sin hash
+        id_nombre_servicio: receta.id_nombre_servicio, // ID del nombre de servicio
+        nombre_servicio_id: `${receta.nombre_servicio}-${unidadHash}`, // ID único para agrupación interna
       orden: receta.orden,
       estado: 1,
       // Mantener el ID original para referencia si es necesario
       originalId: receta.id_producto // Usar id_producto como ID original
-    }));
+      };
+    });
+  }, [selectedRecetas]);
+
+  // Función para personalizar la visualización de grupos
+  const getGroupDisplayName = (groupValue: string, field: string): string => {
+    if (field === 'nombre_servicio_id') {
+      // Extraer solo el nombre del servicio (primera parte antes del hash)
+      // El hash siempre está al final después del último guión
+      const parts = groupValue.split('-');
+      // Si hay más de una parte, tomar solo la primera (nombre del servicio)
+      // Si solo hay una parte, devolverla tal como está
+      return parts.length > 1 ? parts[0] : groupValue;
+    }
+    return groupValue;
   };
 
   // Función para filtrar recetas basándose en las selecciones actuales
-  const getRecetasFiltradas = (): GroupedTableData[] => {
+  const getRecetasFiltradas = useCallback((): GroupedTableData[] => {
     const recetasTransformadas = transformRecetasToTableData(recetasAgrupadas);
 
     // Si no hay recetas seleccionadas, mostrar todas
@@ -338,20 +435,25 @@ const AsignarMenusPage: React.FC = () => {
       return recetasTransformadas;
     }
 
-    // Obtener el tipo de zona de las recetas seleccionadas
-    const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
-      return recetasTransformadas.find(r => r.id === id);
-    }).filter(Boolean);
+    // Obtener la unidad de servicio de las recetas seleccionadas
+    const recetasSeleccionadas = Array.from(selectedRecetas).map(idUnico => {
+      const idRelacion = extraerIdRelacion(idUnico);
+      const unidadServicio = extraerUnidadServicio(idUnico);
+      return recetasTransformadas.find(r => r.id === idRelacion && r.unidad_servicio === unidadServicio);
+    }).filter(Boolean) as GroupedTableData[];
 
-    const tipoZonaSeleccionado = recetasSeleccionadas[0]?.tipo_zona;
-
-    // Si hay un tipo de zona seleccionado, mostrar solo las recetas de ese tipo
-    if (tipoZonaSeleccionado) {
-      return recetasTransformadas.filter(receta => receta.tipo_zona === tipoZonaSeleccionado);
+    if (recetasSeleccionadas.length === 0) {
+      return recetasTransformadas;
     }
 
-    return recetasTransformadas;
-  };
+    // Obtener la unidad de servicio de las recetas seleccionadas
+    const unidadServicioSeleccionada = recetasSeleccionadas[0].unidad_servicio;
+
+    // Mostrar todas las recetas de la misma unidad de servicio
+    return recetasTransformadas.filter(receta => 
+      receta.unidad_servicio === unidadServicioSeleccionada
+    );
+  }, [recetasAgrupadas, selectedRecetas]);
 
   // Iconos para los tipos de menú
   const menuTypeIcons = {
@@ -403,6 +505,11 @@ const AsignarMenusPage: React.FC = () => {
     setSelectedContrato(contratoValue);
     setSelectedUnidades([]);
     setMenusAsignados([]);
+    
+    // LIMPIAR COMPLETAMENTE EL ESTADO PARA EVITAR DUPLICACIONES
+    setSelectedRecetas(new Set());
+    setAsignacionesUnidades([]);
+    setUnidadesCargadas(new Set());
 
     if (contratoValue) {
       // Buscar por ID del contrato
@@ -415,20 +522,27 @@ const AsignarMenusPage: React.FC = () => {
         const unidadesDelContrato = await getUnidadesPorContrato(contratoSeleccionado.id);
         console.log('📊 Unidades encontradas:', unidadesDelContrato);
         setUnidadesFiltradas(unidadesDelContrato);
+        
+        // Cargar recetas específicas del contrato
+        await cargarRecetasAgrupadas(contratoSeleccionado.id);
       } else {
         console.log('❌ No se encontró el contrato o no tiene ID');
         setUnidadesFiltradas([]);
+        // Cargar todas las recetas si no hay contrato específico
+        await cargarRecetasAgrupadas();
       }
     } else {
       setUnidadesFiltradas([]);
+      // Cargar todas las recetas si no hay contrato seleccionado
+      await cargarRecetasAgrupadas();
     }
   };
 
-  const cargarRecetasAgrupadas = async () => {
+  const cargarRecetasAgrupadas = async (contratoId?: number) => {
     try {
       showLoading('Cargando catálogo de recetas...');
 
-      const response = await ProductosService.getRecetasAgrupadas();
+      const response = await ProductosService.getRecetasAgrupadas(contratoId);
 
       if (response.error) {
         console.error('Error cargando recetas:', response.error);
@@ -455,62 +569,114 @@ const AsignarMenusPage: React.FC = () => {
     }
   };
 
-  // Cargar recetas agrupadas al inicio
-  useEffect(() => {
-    cargarRecetasAgrupadas();
-  }, []);
+  // No cargar recetas al inicio, solo cuando se seleccione un contrato
+  // useEffect(() => {
+  //   cargarRecetasAgrupadas();
+  // }, []);
 
-  // Sincronizar recetas seleccionadas con las asignaciones existentes
-  useEffect(() => {
-    if (asignacionesUnidades.length > 0 && recetasAgrupadas.length > 0) {
-      const recetasAsignadas = new Set<string>();
-      
-      // Recopilar todas las recetas asignadas
-      asignacionesUnidades.forEach(unidad => {
-        unidad.recetas.forEach(receta => {
-          // Buscar el índice de la receta en recetasAgrupadas
-          const recetaIndex = recetasAgrupadas.findIndex(r => r.id_producto === receta.id_producto);
-          if (recetaIndex !== -1) {
-            const recetaId = `${receta.id_producto}-${receta.tipo_zona}-${receta.nombre_servicio}-${recetaIndex}`;
-            recetasAsignadas.add(recetaId);
-          }
-        });
-      });
-      
-      // Actualizar el estado de recetas seleccionadas
-      setSelectedRecetas(recetasAsignadas);
-    }
-  }, [asignacionesUnidades, recetasAgrupadas]);
+  // DESHABILITADO: Sincronización automática de recetas seleccionadas
+  // El usuario debe seleccionar manualmente las recetas que desea asignar
+  // useEffect(() => {
+  //   console.log('🔄 useEffect sincronización:', {
+  //     asignacionesUnidades: asignacionesUnidades.length,
+  //     recetasAgrupadas: recetasAgrupadas.length,
+  //     selectedRecetas: Array.from(selectedRecetas)
+  //   });
+  //   
+  //   // Solo sincronizar si hay asignaciones Y recetas, pero NO si ya hay recetas seleccionadas
+  //   if (asignacionesUnidades.length > 0 && recetasAgrupadas.length > 0 && selectedRecetas.size === 0) {
+  //     const recetasAsignadas = new Set<string>();
+  //     
+  //     // Recopilar todas las recetas asignadas
+  //     asignacionesUnidades.forEach(unidad => {
+  //       unidad.recetas.forEach(receta => {
+  //         // Usar solo el id_producto como identificador
+  //         recetasAsignadas.add(receta.id_producto.toString());
+  //       });
+  //     });
+  //     
+  //     console.log('🔄 Recetas asignadas encontradas:', Array.from(recetasAsignadas));
+  //     
+  //     if (recetasAsignadas.size > 0) {
+  //       console.log('🔄 Sincronizando recetas asignadas:', Array.from(recetasAsignadas));
+  //       setSelectedRecetas(recetasAsignadas);
+  //     }
+  //   } else {
+  //     console.log('🔄 No sincronizando:', {
+  //       reason: selectedRecetas.size > 0 ? 'Ya hay recetas seleccionadas' : 'No hay asignaciones o recetas',
+  //       selectedRecetas: Array.from(selectedRecetas)
+  //     });
+  //   }
+  // }, [asignacionesUnidades, recetasAgrupadas]);
 
-  // Función para manejar la selección de recetas con validación de tipo de zona
+  // Función para manejar la selección de recetas con validación de unidad de servicio
   const handleRecetaSelect = (receta: GroupedTableData, selected: boolean) => {
+    const idUnico = generarIdUnico(Number(receta.id), receta.unidad_servicio);
+    
+    console.log('🎯 Seleccionando receta:', {
+      receta: receta.nombre,
+      id: receta.id,
+      unidad_servicio: receta.unidad_servicio,
+      idUnico,
+      selected
+    });
+    
     setSelectedRecetas(prev => {
       const newSet = new Set(prev);
 
       if (selected) {
-        // Verificar si ya hay recetas seleccionadas de otros tipos de zona
-        const recetasActuales = Array.from(prev).map(id => {
-          return recetasAgrupadas.find(r =>
-            `${r.id_producto}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.indexOf(r)}` === id
-          );
+        // Verificar si ya hay recetas seleccionadas de otras unidades de servicio
+        const recetasActuales = Array.from(prev).map(idUnico => {
+          const idRelacion = extraerIdRelacion(idUnico);
+          const unidadServicio = extraerUnidadServicio(idUnico);
+          return recetasAgrupadas.find(r => r.id === idRelacion && r.unidad_servicio === unidadServicio);
         }).filter(Boolean);
 
-        const tiposZonaSeleccionados = new Set(recetasActuales.map(r => r?.tipo_zona));
-        const tipoZonaActual = receta.tipo_zona;
+        // Filtrar solo las recetas que NO son de la misma unidad de servicio actual
+        const recetasDeOtrasUnidades = recetasActuales.filter(r => r?.unidad_servicio !== receta.unidad_servicio);
+        const unidadesServicioSeleccionadas = new Set(recetasDeOtrasUnidades.map(r => r?.unidad_servicio));
+        const unidadServicioActual = receta.unidad_servicio;
 
-        // Si hay recetas de otros tipos de zona seleccionadas, no permitir seleccionar
-        if (tiposZonaSeleccionados.size > 0 && !tiposZonaSeleccionados.has(tipoZonaActual)) {
-          toast({
-            title: "Validación de zona",
-            description: `Solo puedes seleccionar recetas del tipo de zona "${tipoZonaActual}". Deselecciona primero las recetas de otros tipos de zona.`,
-            variant: "destructive",
+        console.log('🔍 Debug validación:', {
+          selectedRecetas: Array.from(prev),
+          recetasActuales: recetasActuales.map(r => ({ id: r?.id_producto, unidad: r?.unidad_servicio })),
+          recetasDeOtrasUnidades: recetasDeOtrasUnidades.map(r => ({ id: r?.id_producto, unidad: r?.unidad_servicio })),
+          unidadesServicioSeleccionadas: Array.from(unidadesServicioSeleccionadas),
+          unidadServicioActual,
+          recetaSeleccionada: receta.nombre
+        });
+
+        // Si hay recetas de otras unidades de servicio seleccionadas, limpiar las anteriores y permitir seleccionar de la nueva unidad
+        if (unidadesServicioSeleccionadas.size > 0) {
+          // Limpiar recetas de otras unidades y permitir seleccionar de la nueva unidad
+          const recetasDeOtrasUnidades = Array.from(prev).filter(idUnico => {
+            const unidadServicio = extraerUnidadServicio(idUnico);
+            return unidadServicio !== unidadServicioActual;
           });
-          return prev; // No hacer cambios
+          
+          // Eliminar recetas de otras unidades
+          recetasDeOtrasUnidades.forEach(idUnico => newSet.delete(idUnico));
+          
+          // Mostrar toast después de actualizar el estado (usando setTimeout para evitar warning)
+          setTimeout(() => {
+          toast({
+              title: "Cambio de unidad de servicio",
+              description: `Se han deseleccionado las recetas de otras unidades. Ahora puedes seleccionar recetas de "${unidadServicioActual}".`,
+              variant: "default",
+            });
+          }, 0);
         }
 
-        newSet.add(receta.id.toString());
+        // Verificar si ya existe la misma receta en la misma unidad de servicio
+        if (!newSet.has(idUnico)) {
+          console.log('✅ Agregando receta al set:', idUnico, 'de unidad:', receta.unidad_servicio);
+          newSet.add(idUnico);
       } else {
-        newSet.delete(receta.id.toString());
+          console.log('⚠️ La receta ya está seleccionada en esta unidad de servicio');
+        }
+      } else {
+        console.log('❌ Eliminando receta del set:', idUnico, 'de unidad:', receta.unidad_servicio);
+        newSet.delete(idUnico);
       }
 
       return newSet;
@@ -555,10 +721,10 @@ const AsignarMenusPage: React.FC = () => {
     }
 
     // Obtener las recetas seleccionadas
-    const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
-      return recetasAgrupadas.find(r =>
-        `${r.id_producto}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.indexOf(r)}` === id
-      );
+    const recetasSeleccionadas = Array.from(selectedRecetas).map(idUnico => {
+      const idRelacion = extraerIdRelacion(idUnico);
+      const unidadServicio = extraerUnidadServicio(idUnico);
+      return recetasAgrupadas.find(r => r.id === idRelacion && r.unidad_servicio === unidadServicio);
     }).filter(Boolean) as RecetaAgrupada[];
 
     // Obtener información del contrato seleccionado
@@ -588,7 +754,14 @@ const AsignarMenusPage: React.FC = () => {
       };
     });
 
-    setAsignacionesUnidades(nuevasAsignaciones);
+    // Agregar nuevas asignaciones sin actualizar las existentes
+    setAsignacionesUnidades(prev => {
+      // Siempre agregar como nuevas asignaciones, no actualizar las existentes
+      const todasLasAsignaciones = [...prev, ...nuevasAsignaciones];
+      const sinDuplicados = eliminarDuplicadosAsignaciones(todasLasAsignaciones);
+      console.log('🔄 Asignando recetas - Antes:', prev.length, 'Nuevas:', nuevasAsignaciones.length, 'Final:', sinDuplicados.length);
+      return sinDuplicados;
+    });
   };
 
   // Función para preparar los datos de asignación para la base de datos
@@ -598,7 +771,7 @@ const AsignarMenusPage: React.FC = () => {
     asignacionesUnidades.forEach(unidad => {
       unidad.recetas.forEach(receta => {
         asignaciones.push({
-          id_producto: receta.id_producto,
+          id_producto_by_unidad: receta.id, // Usar el ID de inv_producto_by_unidades
           id_contrato: parseInt(unidad.contratoId),
           id_unidad_servicio: parseInt(unidad.unidadId),
           estado: 1
@@ -625,13 +798,18 @@ const AsignarMenusPage: React.FC = () => {
 
     try {
       const datosAsignacion = prepararDatosAsignacion();
-      console.log('💾 Preparando para guardar:', datosAsignacion);
+      console.log('💾 Preparando para guardar:', {
+        totalAsignaciones: datosAsignacion.length,
+        asignaciones: datosAsignacion,
+        asignacionesUnidades: asignacionesUnidades.map(a => ({
+          unidadId: a.unidadId,
+          contratoId: a.contratoId,
+          totalRecetas: a.recetas.length,
+          recetas: a.recetas.map(r => ({ id: r.id_producto, nombre: r.nombre_receta }))
+        }))
+      });
 
-      // Eliminar asignaciones existentes para este contrato
-      const contratoId = parseInt(asignacionesUnidades[0].contratoId);
-      await AsignacionesService.eliminarAsignacionesPorContrato(contratoId);
-
-      // Guardar nuevas asignaciones
+      // Guardar nuevas asignaciones sin eliminar las existentes
       const response = await AsignacionesService.guardarAsignaciones(datosAsignacion);
 
       if (response.error) {
@@ -673,31 +851,201 @@ const AsignarMenusPage: React.FC = () => {
     console.log('🧹 Formulario limpiado completamente');
   };
 
+  // Función para desmarcar recetas de una unidad específica
+  const desmarcarRecetasDeUnidad = async (unidadId: string) => {
+    try {
+      console.log('🗑️ Desmarcando recetas de unidad:', unidadId);
+      
+      // Consultar la tabla inv_productos_unidad_servicio para obtener las recetas de esta unidad
+      const { data: asignaciones, error: asignacionesError } = await supabase
+        .from('inv_productos_unidad_servicio')
+        .select(`
+          id,
+          id_producto_by_unidad,
+          id_contrato,
+          id_unidad_servicio
+        `)
+        .eq('id_unidad_servicio', parseInt(unidadId));
+
+      if (asignacionesError) {
+        console.error('❌ Error obteniendo asignaciones para desmarcar:', asignacionesError);
+        return;
+      }
+
+      if (!asignaciones || asignaciones.length === 0) {
+        console.log('⚠️ No se encontraron asignaciones para desmarcar en la unidad:', unidadId);
+        return;
+      }
+
+      console.log('🔍 Asignaciones encontradas para desmarcar:', asignaciones);
+
+      // Obtener los IDs de inv_producto_by_unidades
+      const idsProductoByUnidad = asignaciones.map(a => a.id_producto_by_unidad);
+      console.log('🔍 IDs de inv_producto_by_unidades a desmarcar:', idsProductoByUnidad);
+
+      // Buscar las recetas correspondientes en el catálogo y desmarcarlas
+      const recetasADesmarcar: string[] = [];
+      
+      idsProductoByUnidad.forEach((idProductoByUnidad: number) => {
+        // Buscar la receta correspondiente en el catálogo por el ID de inv_producto_by_unidades
+        const recetaEnCatalogo = recetasAgrupadas.find(receta => 
+          receta.id === idProductoByUnidad
+        );
+        
+        if (recetaEnCatalogo) {
+          const idUnico = generarIdUnico(recetaEnCatalogo.id, recetaEnCatalogo.unidad_servicio);
+          recetasADesmarcar.push(idUnico);
+          console.log('✅ Encontrada receta en catálogo para desmarcar:', {
+            idProductoByUnidad,
+            recetaEnCatalogo: {
+              id: recetaEnCatalogo.id,
+              nombre: recetaEnCatalogo.nombre_receta,
+              unidad: recetaEnCatalogo.unidad_servicio
+            },
+            idUnico
+          });
+        } else {
+          console.log('❌ No se encontró receta en catálogo para desmarcar:', {
+            idProductoByUnidad
+          });
+        }
+      });
+      
+      console.log('🔍 IDs únicos para desmarcar:', recetasADesmarcar);
+      
+      // Desmarcar las recetas
+      setSelectedRecetas(prev => {
+        const newSet = new Set(prev);
+        recetasADesmarcar.forEach(idUnico => {
+          newSet.delete(idUnico);
+          console.log('❌ Desmarcando receta:', idUnico);
+        });
+        return newSet;
+      });
+
+          // Limpiar la unidad de las unidades cargadas
+          setUnidadesCargadas(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(unidadId);
+            return newSet;
+          });
+
+          console.log('✅ Recetas desmarcadas de la unidad:', unidadId);
+        } catch (error) {
+          console.error('❌ Error inesperado desmarcando recetas de unidad:', error);
+        }
+  };
+
   // Función para cargar recetas existentes de una unidad
   const cargarRecetasExistentes = async (unidadId: string) => {
     try {
       console.log('🔍 Cargando recetas existentes para unidad:', unidadId);
       
-      const response = await AsignacionesService.getRecetasExistentesPorUnidad(parseInt(unidadId));
-      
-      if (response.error) {
-        console.error('❌ Error cargando recetas existentes:', response.error);
+      // Verificar si ya se cargaron las recetas para esta unidad
+      if (unidadesCargadas.has(unidadId)) {
+        console.log('⚠️ Ya se cargaron recetas para esta unidad, saltando:', unidadId);
         return;
       }
 
-      if (response.data && response.data.length > 0) {
-        // Convertir recetas existentes al formato esperado
-        const recetasExistentes = response.data.map(receta => ({
-          id: receta.id_producto.toString(),
-          id_producto: receta.id_producto,
-          tipo_zona: receta.tipo_zona,
-          nombre_servicio: receta.nombre_servicio,
-          codigo: receta.codigo,
-          nombre_receta: receta.nombre_receta,
-          orden: 0,
-          uniqueId: `${receta.id_producto}-${unidadId}`
-        }));
+      // Verificar si ya existe una asignación para esta unidad
+      const yaExisteAsignacion = asignacionesUnidades.some(a => a.unidadId === unidadId);
+      console.log('🔍 Verificando asignaciones existentes:', {
+        unidadId,
+        asignacionesExistentes: asignacionesUnidades.map(a => ({ unidadId: a.unidadId, recetas: a.recetas.length })),
+        yaExisteAsignacion
+      });
+      if (yaExisteAsignacion) {
+        console.log('⚠️ Ya existe asignación para esta unidad, saltando carga:', unidadId);
+        return;
+      }
+      
+      // Consultar directamente la tabla inv_productos_unidad_servicio
+      const { data: asignaciones, error: asignacionesError } = await supabase
+        .from('inv_productos_unidad_servicio')
+        .select(`
+          id,
+          id_producto_by_unidad,
+          id_contrato,
+          id_unidad_servicio
+        `)
+        .eq('id_unidad_servicio', parseInt(unidadId));
 
+      if (asignacionesError) {
+        console.error('❌ Error obteniendo asignaciones:', asignacionesError);
+        return;
+      }
+
+      if (!asignaciones || asignaciones.length === 0) {
+        console.log('⚠️ No se encontraron asignaciones para la unidad:', unidadId);
+        return;
+      }
+
+      console.log('🔍 Asignaciones encontradas:', asignaciones);
+
+      // Obtener los IDs de inv_producto_by_unidades
+      const idsProductoByUnidad = asignaciones.map(a => a.id_producto_by_unidad);
+      console.log('🔍 IDs de inv_producto_by_unidades:', idsProductoByUnidad);
+
+      // Buscar las recetas correspondientes en el catálogo y marcarlas como seleccionadas
+      const recetasIdsParaMarcar: string[] = [];
+      
+      idsProductoByUnidad.forEach((idProductoByUnidad: number) => {
+        // Buscar la receta correspondiente en el catálogo por el ID de inv_producto_by_unidades
+        const recetaEnCatalogo = recetasAgrupadas.find(receta => 
+          receta.id === idProductoByUnidad
+        );
+        
+        if (recetaEnCatalogo) {
+          const idUnico = generarIdUnico(recetaEnCatalogo.id, recetaEnCatalogo.unidad_servicio);
+          recetasIdsParaMarcar.push(idUnico);
+          console.log('✅ Encontrada receta en catálogo:', {
+            idProductoByUnidad,
+            recetaEnCatalogo: {
+              id: recetaEnCatalogo.id,
+              nombre: recetaEnCatalogo.nombre_receta,
+              unidad: recetaEnCatalogo.unidad_servicio
+            },
+            idUnico
+          });
+        } else {
+          console.log('❌ No se encontró receta en catálogo:', {
+            idProductoByUnidad
+          });
+        }
+      });
+      
+      console.log('🔍 IDs únicos para marcar:', recetasIdsParaMarcar);
+      
+      // Debug: Ver qué unidades están en el catálogo
+      console.log('🔍 Unidades en el catálogo:', [...new Set(recetasAgrupadas.map(r => r.unidad_servicio))]);
+      
+      setSelectedRecetas(prev => {
+        const newSet = new Set(prev);
+        recetasIdsParaMarcar.forEach(idUnico => newSet.add(idUnico));
+        console.log('🎯 Marcando recetas existentes como seleccionadas:', {
+          recetasIdsParaMarcar,
+          selectedRecetas: Array.from(newSet)
+        });
+        return newSet;
+      });
+
+      // Agregar las recetas a la sección "Recetas Asignadas"
+      const recetasParaAsignacion: (RecetaAgrupada & { uniqueId: string })[] = [];
+      
+      idsProductoByUnidad.forEach((idProductoByUnidad: number) => {
+        const recetaEnCatalogo = recetasAgrupadas.find(receta => 
+          receta.id === idProductoByUnidad
+        );
+        
+        if (recetaEnCatalogo) {
+          recetasParaAsignacion.push({
+            ...recetaEnCatalogo,
+            uniqueId: `${recetaEnCatalogo.id}-${unidadId}`
+          });
+        }
+      });
+
+      if (recetasParaAsignacion.length > 0) {
         // Obtener información de la unidad
         const unidad = unidadesFiltradas.find(u => u.id.toString() === unidadId);
         const contrato = contratosDisponibles.find(c => c.id?.toString() === selectedContrato);
@@ -710,30 +1058,27 @@ const AsignarMenusPage: React.FC = () => {
             zonaNombre: unidad.zona_nombre || 'Sin Zona',
             contratoId: selectedContrato,
             contratoNombre: contrato['Entidad / Contratante:FLT'] || 'Contrato desconocido',
-            recetas: recetasExistentes
+            recetas: recetasParaAsignacion
           };
 
-          // Agregar a las asignaciones existentes
+          // Agregar la nueva asignación (ya verificamos que no existe)
           setAsignacionesUnidades(prev => {
-            // Verificar si ya existe una asignación para esta unidad
-            const existeAsignacion = prev.some(a => a.unidadId === unidadId);
-            if (existeAsignacion) {
-              return prev; // No duplicar
-            }
-            return [...prev, nuevaAsignacion];
+            // FILTRAR CUALQUIER ASIGNACIÓN EXISTENTE PARA ESTA UNIDAD
+            const sinDuplicados = prev.filter(a => a.unidadId !== unidadId);
+            const nuevasAsignaciones = [...sinDuplicados, nuevaAsignacion];
+            const sinDuplicadosFinales = eliminarDuplicadosAsignaciones(nuevasAsignaciones);
+            console.log('➕ Creando nueva asignación para unidad:', unidadId);
+            console.log('🔍 Filtrado duplicados - Antes:', prev.length, 'Después:', sinDuplicadosFinales.length);
+            return sinDuplicadosFinales;
           });
 
-          // Marcar las recetas como seleccionadas en el catálogo
-          const recetasIds = recetasExistentes.map(r => `${r.id_producto}-${r.tipo_zona}-${r.nombre_servicio}-${recetasAgrupadas.findIndex(ra => ra.id_producto === r.id_producto)}`);
-          setSelectedRecetas(prev => {
-            const newSet = new Set(prev);
-            recetasIds.forEach(id => newSet.add(id));
-            return newSet;
-          });
-
-          console.log('✅ Recetas existentes cargadas:', recetasExistentes);
+          console.log('✅ Recetas agregadas a asignaciones:', recetasParaAsignacion);
         }
       }
+
+      // Marcar la unidad como cargada
+      setUnidadesCargadas(prev => new Set([...prev, unidadId]));
+      console.log('✅ Recetas existentes cargadas, marcadas y agregadas a asignaciones');
     } catch (error) {
       console.error('❌ Error inesperado cargando recetas existentes:', error);
     }
@@ -741,15 +1086,44 @@ const AsignarMenusPage: React.FC = () => {
 
   // Función para manejar el cambio de unidades seleccionadas
   const handleUnidadesChange = (nuevasUnidades: string[]) => {
+    const unidadesAnteriores = selectedUnidades;
+    const unidadesEliminadas = unidadesAnteriores.filter(unidadId => !nuevasUnidades.includes(unidadId));
+    
     setSelectedUnidades(nuevasUnidades);
     
-    // Cargar recetas existentes para las nuevas unidades que tienen menú
-    nuevasUnidades.forEach(unidadId => {
-      const unidad = unidadesFiltradas.find(u => u.id.toString() === unidadId);
-      if (unidad && unidad.tiene_menu) {
-        cargarRecetasExistentes(unidadId);
-      }
-    });
+    // Si se eliminaron unidades, desmarcar las recetas asociadas a esas unidades
+    if (unidadesEliminadas.length > 0) {
+      console.log('🗑️ Unidades eliminadas:', unidadesEliminadas);
+      
+      // Desmarcar recetas de las unidades eliminadas
+      unidadesEliminadas.forEach(async (unidadId) => {
+        await desmarcarRecetasDeUnidad(unidadId);
+      });
+      
+      // Eliminar las asignaciones de las unidades eliminadas
+      setAsignacionesUnidades(prev => 
+        prev.filter(a => !unidadesEliminadas.includes(a.unidadId))
+      );
+    }
+    
+          // Cargar recetas existentes para las nuevas unidades que tienen menú
+          nuevasUnidades.forEach(unidadId => {
+            const unidad = unidadesFiltradas.find(u => u.id.toString() === unidadId);
+            if (unidad && unidad.tiene_menu) {
+              // Verificar que no se haya cargado ya
+              if (!unidadesCargadas.has(unidadId) && !asignacionesUnidades.some(a => a.unidadId === unidadId)) {
+                console.log('🔄 Cargando recetas para unidad nueva:', unidadId);
+                cargarRecetasExistentes(unidadId);
+              } else {
+                console.log('⚠️ Saltando carga para unidad ya procesada:', unidadId);
+              }
+            }
+          });
+    
+    // Si no hay recetas cargadas, cargar el catálogo de recetas
+    if (recetasAgrupadas.length === 0) {
+      cargarRecetasAgrupadas();
+    }
   };
 
   // Función para mostrar el diálogo de confirmación
@@ -768,7 +1142,10 @@ const AsignarMenusPage: React.FC = () => {
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Asignación de Menús</h1>
+        <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2 mb-2">
+          <FileText className="w-8 h-8 text-cyan-600" />
+          Asignación de Menús
+        </h1>
         <p className="text-gray-600">Gestiona la asignación de productos a los menús de los contratos</p>
       </div>
 
@@ -848,24 +1225,26 @@ const AsignarMenusPage: React.FC = () => {
                   />
                 </div>
 
-                {/* Indicador de tipo de zona seleccionado */}
+                {/* Indicador de unidad de servicio seleccionada */}
                 {selectedRecetas.size > 0 && (() => {
-                  const recetasSeleccionadas = Array.from(selectedRecetas).map(id => {
-                    return transformRecetasToTableData(recetasAgrupadas).find(r => r.id === id);
+                  const recetasSeleccionadas = Array.from(selectedRecetas).map(idUnico => {
+                    const idRelacion = extraerIdRelacion(idUnico);
+                    const unidadServicio = extraerUnidadServicio(idUnico);
+                    return transformRecetasToTableData(recetasAgrupadas).find(r => r.id === idRelacion && r.unidad_servicio === unidadServicio);
                   }).filter(Boolean);
 
-                  const tipoZonaSeleccionado = recetasSeleccionadas[0]?.tipo_zona;
+                  const unidadServicioSeleccionada = recetasSeleccionadas[0]?.unidad_servicio;
 
                   return (
                     <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                         <span className="text-sm font-medium text-blue-800">
-                          Tipo de zona seleccionado: <strong>{tipoZonaSeleccionado}</strong>
+                          Unidad de servicio seleccionada: <strong>{unidadServicioSeleccionada}</strong>
                         </span>
                       </div>
                       <p className="text-xs text-blue-600 mt-1">
-                        Solo se muestran recetas de este tipo de zona. Deselecciona todas para ver todas las opciones.
+                        Solo se muestran recetas de esta unidad de servicio. Deselecciona todas para ver todas las opciones.
                       </p>
                     </div>
                   );
@@ -901,7 +1280,8 @@ const AsignarMenusPage: React.FC = () => {
                   <div className="p-4">
                     <GroupedTable
                       data={getRecetasFiltradas()}
-                      groupBy={['tipo_zona', 'nombre_servicio']}
+                      groupBy={['unidad_servicio', 'nombre_servicio_id']}
+                      groupDisplayNames={getGroupDisplayName}
                       columns={[
                         {
                           key: 'nombre',
@@ -919,6 +1299,7 @@ const AsignarMenusPage: React.FC = () => {
                       showCheckboxes={true}
                       selectedItems={selectedRecetas}
                       onItemSelect={handleRecetaSelect}
+                      isItemSelected={isItemSelected}
                       groupIcons={{}}
                       onItemClick={(item) => {
                         // Aquí puedes manejar la selección de recetas
@@ -1093,14 +1474,13 @@ const AsignarMenusPage: React.FC = () => {
                                         // Si no existe en otras unidades, desmarcar del catálogo
                                         if (!recetaExisteEnOtrasUnidades) {
                                           // Buscar la receta original en recetasAgrupadas
-                                          const recetaOriginal = recetasAgrupadas.find(r => r.id_producto === receta.id_producto);
+                                          const recetaOriginal = recetasAgrupadas.find(r => r.id === receta.id && r.unidad_servicio === receta.unidad_servicio);
                                           if (recetaOriginal) {
-                                            const recetaIndex = recetasAgrupadas.indexOf(recetaOriginal);
-                                            const recetaId = `${recetaOriginal.id_producto}-${recetaOriginal.tipo_zona}-${recetaOriginal.nombre_servicio}-${recetaIndex}`;
-                                            console.log('Desmarcando del catálogo:', recetaId);
+                                            const recetaIdUnico = generarIdUnico(recetaOriginal.id, recetaOriginal.unidad_servicio);
+                                            console.log('Desmarcando del catálogo:', recetaIdUnico);
                                             setSelectedRecetas(prevSelected => {
                                               const newSet = new Set(prevSelected);
-                                              newSet.delete(recetaId);
+                                              newSet.delete(recetaIdUnico);
                                               console.log('Recetas seleccionadas después:', Array.from(newSet));
                                               return newSet;
                                             });

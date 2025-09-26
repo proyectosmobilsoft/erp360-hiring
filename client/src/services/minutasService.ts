@@ -11,7 +11,7 @@ export interface MenuAsignado {
   id_producto: number;
   nombre_receta: string;
   codigo: string;
-  tipo_zona: string;
+  unidad_servicio: string;
   nombre_servicio: string;
   fecha_asignacion: string;
   ingredientes?: string[];
@@ -113,55 +113,132 @@ export class MinutasService {
 
       const zonaNombre = zonaInfo?.nombre || 'Zona';
 
-      // Obtener los menús asignados a estas unidades
-      const { data: menus, error: errorMenus } = await supabase
+      // Obtener los menús asignados a estas unidades usando la misma lógica que asignacionesService
+      const { data: asignaciones, error: errorAsignaciones } = await supabase
         .from('inv_productos_unidad_servicio')
         .select(`
+          id,
+          id_producto_by_unidad,
+          id_contrato,
           id_unidad_servicio,
-          created_at,
-          inv_productos!inner(
-            id,
-            nombre,
-            codigo,
-            gen_tipo_zonas!inner(
-              nombre
-            ),
-            inv_clase_servicios!inner(
-              nombre
-            )
-          )
+          created_at
         `)
         .in('id_unidad_servicio', unidadIds)
         .eq('id_contrato', contratoId);
 
-      if (errorMenus) {
-        console.error('❌ Error obteniendo menús:', errorMenus);
-        return { data: null, error: errorMenus };
+      if (errorAsignaciones) {
+        console.error('❌ Error obteniendo asignaciones:', errorAsignaciones);
+        return { data: null, error: errorAsignaciones };
       }
 
-      console.log('🍽️ Menús encontrados:', menus);
+      console.log('🍽️ Asignaciones encontradas:', asignaciones);
 
-      // Combinar los datos
+      if (!asignaciones || asignaciones.length === 0) {
+        console.log('⚠️ No se encontraron asignaciones para estas unidades');
+        return { data: [], error: null };
+      }
+
+      // Obtener los IDs de relaciones producto-unidad únicos
+      const relacionesIds = [...new Set(asignaciones.map(a => a.id_producto_by_unidad))];
+      
+      // Obtener información de las relaciones producto-unidad con sus datos relacionados
+      const { data: relaciones, error: errorRelaciones } = await supabase
+        .from('inv_producto_by_unidades')
+        .select(`
+          id,
+          id_producto,
+          id_unidad_servicio,
+          inv_productos!inner (
+            id,
+            nombre,
+            codigo,
+            inv_categorias!inner (
+              isreceta
+            ),
+            inv_clase_servicios (
+              id,
+              nombre
+            )
+          )
+        `)
+        .in('id', relacionesIds)
+        .eq('inv_productos.inv_categorias.isreceta', 1);
+
+      if (errorRelaciones) {
+        console.error('❌ Error obteniendo relaciones:', errorRelaciones);
+        return { data: null, error: errorRelaciones };
+      }
+
+      console.log('🍽️ Relaciones encontradas:', relaciones);
+
+      // Combinar los datos usando la misma lógica que asignacionesService
       const unidadesConMenus: UnidadConMenu[] = unidades.map(unidad => {
-        const menusDeUnidad = menus?.filter(menu => 
-          menu.id_unidad_servicio === unidad.id
+        // Filtrar asignaciones para esta unidad
+        const asignacionesDeUnidad = asignaciones?.filter(asignacion => 
+          asignacion.id_unidad_servicio === unidad.id
         ) || [];
 
-        const menusFormateados: MenuAsignado[] = menusDeUnidad.map(menu => {
+        console.log(`🔍 Procesando unidad ${unidad.id} (${unidad.nombre_servicio}):`, {
+          asignacionesDeUnidad: asignacionesDeUnidad.length,
+          primerAsignacion: asignacionesDeUnidad[0]
+        });
+
+        const menusFormateados: MenuAsignado[] = asignacionesDeUnidad.map(asignacion => {
+          // Buscar la relación correspondiente
+          const relacion = relaciones?.find(r => r.id === asignacion.id_producto_by_unidad);
+          if (!relacion) {
+            console.log('❌ No se encontró relación para la asignación:', asignacion.id_producto_by_unidad);
+            return null;
+          }
+          
+          console.log('🔍 Relación encontrada:', {
+            id: relacion.id,
+            id_producto: relacion.id_producto,
+            id_unidad_servicio: relacion.id_unidad_servicio,
+            inv_productos: relacion.inv_productos,
+            tipo: typeof relacion.inv_productos,
+            esArray: Array.isArray(relacion.inv_productos),
+            keys: relacion.inv_productos ? Object.keys(relacion.inv_productos) : 'null'
+          });
+          
+          // Acceder correctamente a la estructura de datos
+          let producto;
+          
+          // Verificar si es un array o un objeto
+          if (Array.isArray(relacion.inv_productos)) {
+            producto = relacion.inv_productos[0];
+            console.log('📋 Es array, accediendo a [0]:', producto);
+          } else {
+            producto = relacion.inv_productos;
+            console.log('📋 Es objeto, accediendo directo:', producto);
+          }
+          
+          if (!producto) {
+            console.log('❌ No se encontró producto para la relación');
+            return null;
+          }
+          
+          console.log('✅ Producto encontrado:', {
+            id: producto.id,
+            nombre: producto.nombre,
+            codigo: producto.codigo,
+            clase_servicio: producto.inv_clase_servicios
+          });
+          
           // Simular ingredientes basados en el nombre del producto
-          const ingredientes = generarIngredientes(menu.inv_productos.nombre);
+          const ingredientes = generarIngredientes(producto.nombre);
           
           return {
-            id_producto: menu.inv_productos.id,
-            nombre_receta: menu.inv_productos.nombre,
-            codigo: menu.inv_productos.codigo,
-            tipo_zona: (menu.inv_productos.gen_tipo_zonas as any)?.nombre || '',
-            nombre_servicio: (menu.inv_productos.inv_clase_servicios as any)?.nombre || '',
-            fecha_asignacion: menu.created_at,
+            id_producto: producto.id,
+            nombre_receta: producto.nombre,
+            codigo: producto.codigo,
+            unidad_servicio: unidad.nombre_servicio,
+            nombre_servicio: producto.inv_clase_servicios?.[0]?.nombre || '',
+            fecha_asignacion: asignacion.created_at,
             ingredientes: ingredientes,
-            descripcion: menu.inv_productos.nombre // Usar el nombre como descripción
+            descripcion: producto.nombre
           };
-        });
+        }).filter(Boolean) as MenuAsignado[];
 
         return {
           unidad_id: unidad.id,
