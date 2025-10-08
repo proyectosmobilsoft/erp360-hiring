@@ -18,7 +18,7 @@ const ContratosList: React.FC = () => {
     try {
       // Obtener datos completos desde la base de datos
       const response = await ContratosService.getContratoCompleto(contratoView.id);
-      
+
       if (response.error || !response.data) {
         // Si hay error, usar datos de la vista como fallback
         console.warn('No se pudieron obtener datos completos, usando datos de vista');
@@ -54,7 +54,7 @@ const ContratosList: React.FC = () => {
       const contrato = response.data;
       console.log('Datos completos del contrato:', contrato); // Debug
       console.log('Clausulas en datos completos:', contrato.clausulas); // Debug
-      
+
       return {
         id: contrato.id,
         id_tercero: contrato.id_tercero,
@@ -142,8 +142,8 @@ const ContratosList: React.FC = () => {
 
   return (
     <div className="p-4 max-w-full mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2 mb-2">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2">
           <FileText className="w-8 h-8 text-cyan-600" />
           Maestro de Contratos
         </h1>
@@ -177,8 +177,8 @@ const ContratosList: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="registro" className="mt-6">
-          <ContratoForm 
-            contratoEnEdicion={contratoEnEdicion} 
+          <ContratoForm
+            contratoEnEdicion={contratoEnEdicion}
             onCancel={handleCancelarFormulario}
             onSave={handleGuardarFormulario}
           />

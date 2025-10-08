@@ -75,35 +75,34 @@ const SelectWithSearch: React.FC<SelectWithSearchProps> = ({
 
   return (
     <div className="relative" ref={selectRef}>
-             <button
-         type="button"
-         onClick={() => !disabled && setIsOpen(!isOpen)}
-         disabled={disabled}
-         className={`w-full px-3 py-2 text-left border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-           disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white cursor-pointer hover:border-gray-400'
-         }`}
-       >
-         {selectedOption ? (
-           <span className="truncate block" title={selectedOption.nombre}>
-             {selectedOption.nombre}
-           </span>
-         ) : (
-           <span className="text-gray-500">{placeholder}</span>
-         )}
-       </button>
-      
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full px-2 py-1.5 text-left border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm h-8 ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white cursor-pointer hover:border-gray-400'
+          }`}
+      >
+        {selectedOption ? (
+          <span className="truncate block" title={selectedOption.nombre}>
+            {selectedOption.nombre}
+          </span>
+        ) : (
+          <span className="text-gray-500">{placeholder}</span>
+        )}
+      </button>
+
       {isOpen && !disabled && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-          <div className="p-2">
+          <div className="p-3">
             <Input
               type="text"
               placeholder="Buscar..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="mb-2"
+              className="mb-2 h-8 text-sm"
             />
           </div>
-          <div className="max-h-60 overflow-auto">
+          <div className="max-h-60 overflow-auto px-2 pb-2">
             {filteredOptions.map((option) => (
               <button
                 key={option.id}
@@ -113,7 +112,7 @@ const SelectWithSearch: React.FC<SelectWithSearchProps> = ({
                   setIsOpen(false);
                   setSearchTerm('');
                 }}
-                className="w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                className="w-full px-2 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none text-xs rounded mb-1"
               >
                 {option.nombre}
               </button>
@@ -143,8 +142,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   const multiSelectRef = useRef<HTMLDivElement>(null);
 
   const filteredOptions = options.filter(option =>
-    option.nombre.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    !selectedValues.includes(option.id)
+    option.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Cerrar select al hacer clic fuera
@@ -182,7 +180,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 text-left border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white cursor-pointer hover:border-gray-400"
+        className="w-full px-2 py-1.5 text-left border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white cursor-pointer hover:border-gray-400 text-sm min-h-8"
       >
         {selectedValues.length > 0 ? (
           <div className="flex flex-wrap gap-1">
@@ -209,29 +207,80 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
           <span className="text-gray-500">{placeholder}</span>
         )}
       </button>
-      
+
       {isOpen && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-          <div className="p-2">
+          <div className="p-3">
             <Input
               type="text"
               placeholder="Buscar zonas..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="mb-2"
+              className="mb-2 h-8 text-sm"
             />
           </div>
-          <div className="max-h-60 overflow-auto">
-            {filteredOptions.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => toggleOption(option.id)}
-                className="w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
-              >
-                {option.nombre}
-              </button>
-            ))}
+          <div className="max-h-60 overflow-auto px-2 pb-2">
+            {(() => {
+              // Agrupar opciones por zona (simulando zonas)
+              const groupedOptions = filteredOptions.reduce((groups, option) => {
+                // Extraer el código de zona del nombre (formato: "CODIGO - NOMBRE")
+                const match = option.nombre.match(/^([^-]+)\s*-\s*(.+)$/);
+                const zona = match ? match[1].trim() : 'Sin Código';
+
+                if (!groups[zona]) {
+                  groups[zona] = [];
+                }
+                groups[zona].push(option);
+                return groups;
+              }, {} as Record<string, typeof filteredOptions>);
+
+              return Object.entries(groupedOptions).map(([zona, opciones]) => (
+                <div key={zona}>
+                  {/* Header de zona */}
+                  <div className="px-2 py-1.5 bg-gray-100 text-xs font-semibold text-gray-700 border-b border-gray-200">
+                    {zona}
+                  </div>
+                  {/* Opciones de la zona */}
+                  {opciones.map((option) => {
+                    const isSelected = selectedValues.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => toggleOption(option.id)}
+                        className="w-full px-4 py-1.5 text-left focus:outline-none text-xs mb-1 rounded"
+                        style={{
+                          backgroundColor: isSelected ? '#ecfeff' : 'transparent',
+                          borderLeft: isSelected ? '3px solid #06b6d4' : 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => { }} // El onChange se maneja en el onClick del botón
+                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
+                          />
+                          <span className={isSelected ? 'text-cyan-800 font-medium' : 'text-gray-700'}>
+                            {option.nombre}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ));
+            })()}
           </div>
         </div>
       )}
@@ -242,7 +291,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 const MinutasContratoPage: React.FC = () => {
   const { toast } = useToast();
   const { showLoading, hideLoading } = useGlobalLoading();
-  
+
   const [contratosDisponibles, setContratosDisponibles] = useState<ContratoView[]>([]);
   const [selectedContrato, setSelectedContrato] = useState<string>('');
   const [contratoSeleccionado, setContratoSeleccionado] = useState<ContratoView | null>(null);
@@ -255,6 +304,7 @@ const MinutasContratoPage: React.FC = () => {
   const [cargandoUnidades, setCargandoUnidades] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState<string | null>(null);
   const [unidadesOverlay, setUnidadesOverlay] = useState<UnidadConMenu[]>([]);
+  const [pplPorZona, setPplPorZona] = useState<Record<string, number>>({});
 
   useEffect(() => {
     cargarContratos();
@@ -279,7 +329,7 @@ const MinutasContratoPage: React.FC = () => {
   const cargarZonasPorContrato = async (contratoId: number) => {
     try {
       console.log('🔍 Cargando zonas para contrato ID:', contratoId);
-      
+
       // Consultar las zonas relacionadas al contrato
       const { data, error } = await supabase
         .from('prod_zonas_by_contrato')
@@ -333,14 +383,14 @@ const MinutasContratoPage: React.FC = () => {
   const cargarMenusPorZona = async (zonaId: string) => {
     try {
       console.log('🍽️ Cargando menús para zona ID:', zonaId);
-      
+
       // Obtener el número de ciclos del contrato seleccionado
       const noCiclos = contratoSeleccionado?.['No. Días'] || 15;
       console.log('📅 Número de ciclos del contrato:', noCiclos);
-      
+
       // Generar menús dinámicos basados en el número de ciclos
       const menusDinamicos = [];
-      
+
       for (let ciclo = 1; ciclo <= noCiclos; ciclo++) {
         const menu = {
           id: ciclo,
@@ -350,34 +400,34 @@ const MinutasContratoPage: React.FC = () => {
             {
               nombre: 'DESAYUNO',
               items: [
-                { 
-                  dia: ciclo, 
-                  fruta: `FRUTA CICLO ${ciclo}`, 
-                  cereal: `CEREAL CICLO ${ciclo}`, 
-                  bebida: `BEBIDA CICLO ${ciclo}`, 
-                  sopa: `SOPA CICLO ${ciclo}`, 
-                  proteina: `PROTEINA CICLO ${ciclo}` 
+                {
+                  dia: ciclo,
+                  fruta: `FRUTA CICLO ${ciclo}`,
+                  cereal: `CEREAL CICLO ${ciclo}`,
+                  bebida: `BEBIDA CICLO ${ciclo}`,
+                  sopa: `SOPA CICLO ${ciclo}`,
+                  proteina: `PROTEINA CICLO ${ciclo}`
                 }
               ]
             },
             {
               nombre: 'ALMUERZO',
               items: [
-                { 
-                  dia: ciclo, 
-                  bebida: `BEBIDA CICLO ${ciclo}`, 
-                  sopa: `SOPA CICLO ${ciclo}`, 
-                  proteina: `PROTEINA CICLO ${ciclo}`, 
-                  cereal: `CEREAL CICLO ${ciclo}` 
+                {
+                  dia: ciclo,
+                  bebida: `BEBIDA CICLO ${ciclo}`,
+                  sopa: `SOPA CICLO ${ciclo}`,
+                  proteina: `PROTEINA CICLO ${ciclo}`,
+                  cereal: `CEREAL CICLO ${ciclo}`
                 }
               ]
             }
           ]
         };
-        
+
         menusDinamicos.push(menu);
       }
-      
+
       setMenusZona(menusDinamicos);
       console.log('📋 Menús dinámicos generados:', menusDinamicos);
     } catch (error) {
@@ -415,7 +465,7 @@ const MinutasContratoPage: React.FC = () => {
   const handleZonaChange = async (zonas: string[]) => {
     setZonasSeleccionadas(zonas);
     setZonaActiva(''); // Reset zona activa
-    
+
     if (zonas.length > 0) {
       // Cargar menús de la primera zona seleccionada
       await cargarMenusPorZona(zonas[0]);
@@ -427,24 +477,30 @@ const MinutasContratoPage: React.FC = () => {
   const handleZonaClick = async (zonaId: string) => {
     setZonaActiva(zonaId);
     setCargandoUnidades(true);
-    
+
     try {
       // Cargar menús dinámicos (código existente)
       await cargarMenusPorZona(zonaId);
-      
+
       // Cargar unidades reales con menús asignados
       if (contratoSeleccionado?.id) {
         console.log('🔍 Cargando unidades para zona:', zonaId, 'contrato:', contratoSeleccionado.id);
-        
+
         const response = await MinutasService.getUnidadesConMenusPorZona(
-          contratoSeleccionado.id, 
+          contratoSeleccionado.id,
           parseInt(zonaId)
         );
-        
+
         if (response.data) {
           setUnidadesConMenus(response.data);
           console.log('✅ Unidades con menús cargadas:', response.data);
-          
+
+          // Guardar el PPL total para esta zona
+          setPplPorZona(prev => ({
+            ...prev,
+            [zonaId]: response.data.length // Cada unidad representa 1 PPL
+          }));
+
           // Debug: Log de cada unidad y sus menús
           response.data.forEach((unidad, index) => {
             console.log(`📋 Unidad ${index + 1}:`, {
@@ -476,25 +532,25 @@ const MinutasContratoPage: React.FC = () => {
 
   const handleVerUnidades = async (zonaId: string, event: React.MouseEvent) => {
     event.stopPropagation();
-    
+
     // Si ya está abierto, cerrarlo
     if (overlayVisible === zonaId) {
       setOverlayVisible(null);
       setUnidadesOverlay([]);
       return;
     }
-    
+
     setOverlayVisible(zonaId);
     setCargandoUnidades(true);
-    
+
     try {
       // Cargar unidades para el overlay
       if (contratoSeleccionado?.id) {
         const response = await MinutasService.getUnidadesConMenusPorZona(
-          contratoSeleccionado.id, 
+          contratoSeleccionado.id,
           parseInt(zonaId)
         );
-        
+
         if (response.data) {
           setUnidadesOverlay(response.data);
           console.log('✅ Unidades para overlay cargadas:', response.data);
@@ -511,9 +567,57 @@ const MinutasContratoPage: React.FC = () => {
     }
   };
 
+  const handleSoloVerUnidades = async (zonaId: string) => {
+    // Función específica para el botón del ojito que NO ejecuta handleZonaClick
+    // Si ya está abierto, cerrarlo
+    if (overlayVisible === zonaId) {
+      setOverlayVisible(null);
+      setUnidadesOverlay([]);
+      return;
+    }
+
+    setOverlayVisible(zonaId);
+    setCargandoUnidades(true);
+
+    try {
+      // Cargar unidades para el overlay
+      if (contratoSeleccionado?.id) {
+        const response = await MinutasService.getUnidadesConMenusPorZona(
+          contratoSeleccionado.id,
+          parseInt(zonaId)
+        );
+
+        if (response.data) {
+          setUnidadesOverlay(response.data);
+          console.log('✅ Unidades para overlay cargadas:', response.data);
+
+          // Guardar el PPL total para esta zona (si no se había guardado antes)
+          setPplPorZona(prev => ({
+            ...prev,
+            [zonaId]: prev[zonaId] || response.data.length // Solo actualizar si no existe
+          }));
+        } else if (response.error) {
+          console.error('❌ Error cargando unidades para overlay:', response.error);
+          setUnidadesOverlay([]);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error inesperado cargando unidades para overlay:', error);
+      setUnidadesOverlay([]);
+    } finally {
+      setCargandoUnidades(false);
+    }
+  };
+
   const cerrarOverlay = () => {
     setOverlayVisible(null);
     setUnidadesOverlay([]);
+  };
+
+  // Función para calcular el PPL total de una zona
+  const calcularPPLPorZona = (zonaId: string): number => {
+    // Retornar el PPL guardado para esta zona, o 0 si no se ha calculado
+    return pplPorZona[zonaId] || 0;
   };
 
   // Cerrar overlay al hacer clic fuera
@@ -550,347 +654,358 @@ const MinutasContratoPage: React.FC = () => {
     });
   };
 
-           return (
-      <div className="container mx-auto p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2 mb-2">
-            <FileText className="w-8 h-8 text-cyan-600" />
+  return (
+    <div className="container mx-auto p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2 mb-2">
+          <FileText className="w-8 h-8 text-cyan-600" />
+          Datos del Contrato
+        </h1>
+        <p className="text-gray-600">Información y configuración del contrato seleccionado</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-teal-600" />
             Datos del Contrato
-          </h1>
-          <p className="text-gray-600">Información y configuración del contrato seleccionado</p>
-        </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 pt-0">
 
-       <Card>
-         <CardHeader>
-           <CardTitle className="flex items-center gap-2">
-             <FileText className="w-5 h-5 text-teal-600" />
-             Datos del Contrato
-           </CardTitle>
-         </CardHeader>
-                   <CardContent className="p-6 pt-0">
-          
 
-                                           {/* Información del Contrato */}
-                      <div className="grid grid-cols-6 gap-4 mb-6 scale-90 origin-top">
-                        {/* Row 1: N° Contrato, Nit Cliente, Objeto */}
-                        <div className="col-span-3">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-gray-600" />
-                            N°.Contrato
-                          </label>
-                          <SelectWithSearch
-                            options={contratosDisponibles.map(c => ({
-                              id: c.id?.toString() || '0',
-                              nombre: `(No. ${c['No Contrato']}) ${c['Entidad / Contratante:FLT']?.toUpperCase()}`
-                            }))}
-                            value={selectedContrato}
-                            onChange={handleContratoChange}
-                            placeholder="Seleccione un contrato..."
-                          />
-                        </div>
+          {/* Información del Contrato */}
+          <div className="grid grid-cols-6 gap-2 mb-3">
+            {/* Row 1: N° Contrato, Nit Cliente, Objeto */}
+            <div className="col-span-3">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <FileText className="w-3 h-3 text-gray-600" />
+                N°.Contrato
+              </label>
+              <SelectWithSearch
+                options={contratosDisponibles.map(c => ({
+                  id: c.id?.toString() || '0',
+                  nombre: `(No. ${c['No Contrato']}) ${c['Entidad / Contratante:FLT']?.toUpperCase()}`
+                }))}
+                value={selectedContrato}
+                onChange={handleContratoChange}
+                placeholder="Seleccione un contrato..."
+              />
+            </div>
 
-                        <div className="col-span-1">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-gray-600" />
-                            Nit Cliente
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['NIT'] || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            <div className="col-span-1">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <Building2 className="w-3 h-3 text-gray-600" />
+                Nit Cliente
+              </label>
+              <Input
+                value={contratoSeleccionado?.['NIT'] || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        <div className="col-span-2">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-gray-600" />
-                            Objeto
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['Entidad / Contratante:FLT'] || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <MapPin className="w-3 h-3 text-gray-600" />
+                Objeto
+              </label>
+              <Input
+                value={contratoSeleccionado?.['Entidad / Contratante:FLT'] || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        {/* Row 2: Sede, N° PPL, N° Servicios, Fecha Inicial, Fecha Final */}
-                        <div className="col-span-2">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-gray-600" />
-                            Sede
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['Sede:width[300]'] || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            {/* Row 2: Sede, N° PPL, N° Servicios, Fecha Inicial, Fecha Final */}
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <MapPin className="w-3 h-3 text-gray-600" />
+                Sede
+              </label>
+              <Input
+                value={contratoSeleccionado?.['Sede:width[300]'] || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        <div className="col-span-1">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Users className="w-4 h-4 text-gray-600" />
-                            N° PPL
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['PPL:colspan:[Cantidades x Dia]']?.toString() || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            <div className="col-span-1">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <Users className="w-3 h-3 text-gray-600" />
+                N° PPL
+              </label>
+              <Input
+                value={contratoSeleccionado?.['PPL:colspan:[Cantidades x Dia]']?.toString() || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        <div className="col-span-1">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Settings className="w-4 h-4 text-gray-600" />
-                            N° Servicios
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['Servicios:colspan:[Cantidades x Dia]']?.toString() || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            <div className="col-span-1">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <Settings className="w-3 h-3 text-gray-600" />
+                N° Servicios
+              </label>
+              <Input
+                value={contratoSeleccionado?.['Servicios:colspan:[Cantidades x Dia]']?.toString() || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        <div className="col-span-1">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-600" />
-                            Fecha Inicial
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['Inicial:DT:colspan:[Fechas del Contrato]:width[110]'] || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            <div className="col-span-1">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-gray-600" />
+                Fecha Inicial
+              </label>
+              <Input
+                value={contratoSeleccionado?.['Inicial:DT:colspan:[Fechas del Contrato]:width[110]'] || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        <div className="col-span-1">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-600" />
-                            Fecha Final
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['Final:DT:colspan:[Fechas del Contrato]'] || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            <div className="col-span-1">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-gray-600" />
+                Fecha Final
+              </label>
+              <Input
+                value={contratoSeleccionado?.['Final:DT:colspan:[Fechas del Contrato]'] || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        {/* Row 3: Cantidades por día y Grupos/Zonas */}
-                        <div className="col-span-1">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Settings className="w-4 h-4 text-gray-600" />
-                            # Servicios/Dia
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['Servicios:colspan:[Cantidades x Dia]']?.toString() || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            {/* Row 3: Cantidades por día y Grupos/Zonas */}
+            <div className="col-span-1">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <Settings className="w-3 h-3 text-gray-600" />
+                # Servicios/Dia
+              </label>
+              <Input
+                value={contratoSeleccionado?.['Servicios:colspan:[Cantidades x Dia]']?.toString() || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        <div className="col-span-1">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Users className="w-4 h-4 text-gray-600" />
-                            # Raciones/Dia
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['Raciones:colspan:[Cantidades x Dia]']?.toString() || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            <div className="col-span-1">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <Users className="w-3 h-3 text-gray-600" />
+                # Raciones/Dia
+              </label>
+              <Input
+                value={contratoSeleccionado?.['Raciones:colspan:[Cantidades x Dia]']?.toString() || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        <div className="col-span-1">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-600" />
-                            N° Dias
-                          </label>
-                          <Input
-                            value={contratoSeleccionado?.['PPL:colspan:[Cantidades x Dia]']?.toString() || ''}
-                            readOnly
-                            className="bg-white border-gray-300 text-gray-900 font-medium cursor-default"
-                          />
-                        </div>
+            <div className="col-span-1">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-gray-600" />
+                N° Dias
+              </label>
+              <Input
+                value={contratoSeleccionado?.['PPL:colspan:[Cantidades x Dia]']?.toString() || ''}
+                readOnly
+                className="bg-gray-50 border-gray-300 text-gray-900 font-medium cursor-default h-8 text-sm"
+              />
+            </div>
 
-                        <div className="col-span-3">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-indigo-600" />
-                            Grupos / Zonas
-                          </label>
-                          <MultiSelect
-                            options={zonasDisponibles}
-                            selectedValues={zonasSeleccionadas}
-                            onChange={handleZonaChange}
-                            placeholder="Seleccionar zonas..."
-                          />
-                        </div>
-                      </div>
+            <div className="col-span-3">
+              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                <MapPin className="w-3 h-3 text-indigo-600" />
+                Grupos / Zonas
+              </label>
+              <MultiSelect
+                options={zonasDisponibles}
+                selectedValues={zonasSeleccionadas}
+                onChange={handleZonaChange}
+                placeholder="Seleccionar zonas..."
+              />
+            </div>
+          </div>
 
-                      {/* Sección de Grupos/Zonas Seleccionados - Compacta */}
-                      {zonasSeleccionadas.length > 0 && (
-                        <div className="mb-4">
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-teal-600" />
-                              Zonas Seleccionadas ({zonasSeleccionadas.length})
-                            </h3>
-                            
-                            {/* Lista compacta de zonas con overlay desplegable */}
-                            <div className="flex flex-wrap gap-2">
-                              {zonasSeleccionadas.map((zonaId) => {
-                                const zona = zonasDisponibles.find(z => z.id === zonaId);
-                                if (!zona) return null;
-                                
-                                return (
-                                  <div 
-                                    key={zonaId}
-                                    className={`zona-container relative bg-white border border-gray-300 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
-                                      zonaActiva === zonaId ? 'border-teal-500 bg-teal-50' : 'hover:border-gray-400'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between gap-2 min-w-0">
-                                      <div className="flex-1 min-w-0">
-                                        <div 
-                                          className="text-xs font-medium text-gray-800 truncate cursor-pointer"
-                                          onClick={() => handleZonaClick(zonaId)}
-                                          title="Hacer clic para ver calendario"
-                                        >
-                                          {zona.nombre}
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                          NO PPL. {Math.floor(Math.random() * 9000) + 1000}
-                                        </div>
-                                      </div>
-                                      <button 
-                                        className="bg-teal-100 text-teal-700 px-2 py-1 rounded text-xs font-medium hover:bg-teal-200 transition-colors flex items-center gap-1"
-                                        onClick={(e) => handleVerUnidades(zonaId, e)}
-                                        title="Ver unidades de servicio"
-                                      >
-                                        <Eye className="w-3 h-3" />
-                                        Ver Unidades
-                                      </button>
-                                    </div>
+          {/* Sección de Grupos/Zonas Seleccionados - Compacta */}
+          {zonasSeleccionadas.length > 0 && (
+            <div className="mb-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-teal-600" />
+                  Zonas Seleccionadas ({zonasSeleccionadas.length})
+                </h3>
 
-                                    {/* Overlay desplegable */}
-                                    {overlayVisible === zonaId && (
-                                      <div className="overlay-unidades absolute top-full left-0 mt-1 z-50 bg-white border border-blue-200 rounded-lg shadow-lg min-w-64 max-w-80 animate-in slide-in-from-top-2 duration-200">
-                                        {/* Header del overlay */}
-                                        <div className="bg-blue-600 text-white px-3 py-2 rounded-t-lg">
-                                          <h4 className="text-sm font-semibold flex items-center gap-2">
-                                            <Users className="w-4 h-4" />
-                                            Unidades de Servicio
-                                          </h4>
-                                        </div>
+                {/* Lista compacta de zonas con overlay desplegable */}
+                <div className="flex flex-wrap gap-2">
+                  {zonasSeleccionadas.map((zonaId) => {
+                    const zona = zonasDisponibles.find(z => z.id === zonaId);
+                    if (!zona) return null;
 
-                                        {/* Contenido del overlay */}
-                                        <div className="p-2 max-h-64 overflow-y-auto">
-                                          {cargandoUnidades ? (
-                                            <div className="text-center py-4">
-                                              <div className="text-gray-500">
-                                                <Users className="w-6 h-6 mx-auto mb-2 text-gray-400 animate-pulse" />
-                                                <p className="text-xs">Cargando unidades...</p>
-                                              </div>
-                                            </div>
-                                          ) : unidadesOverlay.length > 0 ? (
-                                            <div className="space-y-1">
-                                              {unidadesOverlay.map((unidad) => (
-                                                <div key={unidad.unidad_id} className="flex items-center gap-2 text-xs text-blue-800 hover:bg-blue-50 p-1 rounded">
-                                                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
-                                                  <span className="font-medium">NO PPL.</span>
-                                                  <Users className="w-3 h-3 text-blue-600 flex-shrink-0" />
-                                                  <span className="font-semibold">{Math.floor(Math.random() * 9000) + 1000}</span>
-                                                  <div className="ml-auto text-blue-700 truncate">
-                                                    LA PICOTA - {unidad.unidad_nombre.toUpperCase()}
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          ) : (
-                                            <div className="text-center py-4">
-                                              <div className="text-gray-500">
-                                                <Users className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                                                <p className="text-xs">No hay unidades</p>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Sección de Calendario de Menús */}
-                      {zonaActiva ? (
-                        <div className="mb-6">
-                          {cargandoUnidades ? (
-                            <div className="bg-white border border-gray-300 rounded-lg p-8 text-center">
-                              <div className="text-gray-500">
-                                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                                  <UtensilsCrossed className="w-8 h-8 text-gray-400 animate-pulse" />
-                                </div>
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                                  Cargando menús...
-                                </h4>
-                                <p className="text-sm text-gray-600">
-                                  Obteniendo unidades de servicio y menús asignados
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            <MenuCalendarDetailed
-                              zonaId={zonaActiva}
-                              zonaNombre={zonasDisponibles.find(z => z.id === zonaActiva)?.nombre || 'Zona'}
-                              fechaEjecucion={contratoSeleccionado?.['Ejecucion:DT:colspan:[Fechas del Contrato]'] || new Date().toISOString().split('T')[0]}
-                              unidadesMenus={unidadesConMenus.map(unidad => ({
-                                unidad_id: unidad.unidad_id,
-                                unidad_nombre: unidad.unidad_nombre,
-                                fecha_inicio: unidad.menus[0]?.fecha_asignacion || new Date().toISOString().split('T')[0],
-                                menus: unidad.menus.map(menu => ({
-                                  id: menu.id_producto,
-                                  nombre: menu.nombre_receta,
-                                  tipo: menu.nombre_servicio as 'DESAYUNO' | 'ALMUERZO' | 'CENA' | 'REFRIGERIO',
-                                  codigo: menu.codigo,
-                                  ingredientes: menu.ingredientes || []
-                                }))
-                              }))}
-                            />
-                          )}
-                        </div>
-                      ) : zonasSeleccionadas.length > 0 ? (
-                        <div className="mb-6">
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-                            <div className="text-blue-600">
-                              <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                                <UtensilsCrossed className="w-8 h-8 text-blue-500" />
-                              </div>
-                              <h4 className="text-lg font-semibold text-blue-700 mb-2">
-                                Selecciona una Zona
-                              </h4>
-                              <p className="text-sm text-blue-600">
-                                Haz clic en una de las zonas seleccionadas arriba para visualizar el calendario de menús
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {/* Botón Guardar */}
-                      <div className="flex justify-end">
-                        <Button
-                          onClick={handleGuardarMinutas}
-                          className="bg-teal-600 hover:bg-teal-700 text-white"
-                          disabled={zonasSeleccionadas.length === 0}
+                    return (
+                      <div
+                        key={zonaId}
+                        className="zona-container relative"
+                      >
+                        {/* Botón Ver Unidades - Fuera de la card, arriba a la derecha */}
+                        <button
+                          className="absolute -top-1 -right-1 z-10 bg-teal-600 hover:bg-teal-700 text-white rounded-full p-1.5 shadow-md transition-colors"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleSoloVerUnidades(zonaId);
+                          }}
+                          title="Ver unidades de servicio"
                         >
-                          <Check className="w-4 h-4 mr-2" />
-                          Guardar Configuración
-                        </Button>
-                      </div>
+                          <Eye className="w-3 h-3" />
+                        </button>
 
-          
+                        {/* Card de la zona */}
+                        <div
+                          className={`border border-gray-300 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:shadow-md ${zonaActiva === zonaId
+                              ? 'border-teal-500 bg-teal-100 shadow-md'
+                              : 'hover:border-gray-400 bg-white'
+                            }`}
+                          onClick={() => {
+                            if (zonaActiva === zonaId) {
+                              setZonaActiva(''); // Deseleccionar si ya está seleccionada
+                            } else {
+                              handleZonaClick(zonaId); // Seleccionar si no está seleccionada
+                            }
+                          }}
+                          title={zonaActiva === zonaId ? "Hacer clic para deseleccionar zona" : "Hacer clic para seleccionar zona y ver calendario"}
+                        >
+                          <div className="text-xs font-medium text-gray-800 truncate">
+                            {zona.nombre}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            NO PPL. {calcularPPLPorZona(zonaId)}
+                          </div>
+                        </div>
+
+                        {/* Overlay desplegable */}
+                        {overlayVisible === zonaId && (
+                          <div className="overlay-unidades absolute top-full left-0 mt-1 z-50 bg-white border border-blue-200 rounded-lg shadow-lg min-w-64 max-w-80 animate-in slide-in-from-top-2 duration-200">
+                            {/* Header del overlay */}
+                            <div className="bg-blue-600 text-white px-3 py-2 rounded-t-lg">
+                              <h4 className="text-sm font-semibold flex items-center gap-2">
+                                <Users className="w-4 h-4" />
+                                Unidades de Servicio
+                              </h4>
+                            </div>
+
+                            {/* Contenido del overlay */}
+                            <div className="p-2 max-h-64 overflow-y-auto">
+                              {cargandoUnidades ? (
+                                <div className="text-center py-4">
+                                  <div className="text-gray-500">
+                                    <Users className="w-6 h-6 mx-auto mb-2 text-gray-400 animate-pulse" />
+                                    <p className="text-xs">Cargando unidades...</p>
+                                  </div>
+                                </div>
+                              ) : unidadesOverlay.length > 0 ? (
+                                <div className="space-y-1">
+                                  {unidadesOverlay.map((unidad) => (
+                                    <div key={unidad.unidad_id} className="flex items-center gap-2 text-xs text-blue-800 hover:bg-blue-50 p-1 rounded">
+                                      <div className="w-1.5 h-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
+                                      <span className="font-medium">NO PPL.</span>
+                                      <Users className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                                      <span className="font-semibold">{Math.floor(Math.random() * 9000) + 1000}</span>
+                                      <div className="ml-auto text-blue-700 truncate">
+                                        LA PICOTA - {unidad.unidad_nombre.toUpperCase()}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-center py-4">
+                                  <div className="text-gray-500">
+                                    <Users className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                                    <p className="text-xs">No hay unidades</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sección de Calendario de Menús */}
+          {zonaActiva ? (
+            <div className="mb-6">
+              {cargandoUnidades ? (
+                <div className="bg-white border border-gray-300 rounded-lg p-8 text-center">
+                  <div className="text-gray-500">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                      <UtensilsCrossed className="w-8 h-8 text-gray-400 animate-pulse" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-gray-700 mb-2">
+                      Cargando menús...
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      Obteniendo unidades de servicio y menús asignados
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <MenuCalendarDetailed
+                  zonaId={zonaActiva}
+                  zonaNombre={zonasDisponibles.find(z => z.id === zonaActiva)?.nombre || 'Zona'}
+                  fechaEjecucion={contratoSeleccionado?.['Ejecucion:DT:colspan:[Fechas del Contrato]'] || new Date().toISOString().split('T')[0]}
+                  unidadesMenus={unidadesConMenus.map(unidad => ({
+                    unidad_id: unidad.unidad_id,
+                    unidad_nombre: unidad.unidad_nombre,
+                    fecha_inicio: unidad.menus[0]?.fecha_asignacion || new Date().toISOString().split('T')[0],
+                    menus: unidad.menus.map(menu => ({
+                      id: menu.id_producto,
+                      nombre: menu.nombre_receta,
+                      tipo: menu.nombre_servicio as 'DESAYUNO' | 'ALMUERZO' | 'CENA' | 'REFRIGERIO',
+                      codigo: menu.codigo,
+                      ingredientes: menu.ingredientes || []
+                    }))
+                  }))}
+                />
+              )}
+            </div>
+          ) : zonasSeleccionadas.length > 0 ? (
+            <div className="mb-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+                <div className="text-blue-600">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                    <UtensilsCrossed className="w-8 h-8 text-blue-500" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-blue-700 mb-2">
+                    Selecciona una Zona
+                  </h4>
+                  <p className="text-sm text-blue-600">
+                    Haz clic en una de las zonas seleccionadas arriba para visualizar el calendario de menús
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Botón Guardar */}
+          <div className="flex justify-end">
+            <Button
+              onClick={handleGuardarMinutas}
+              className="bg-teal-600 hover:bg-teal-700 text-white"
+              disabled={zonasSeleccionadas.length === 0}
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Guardar Configuración
+            </Button>
+          </div>
+
+
         </CardContent>
       </Card>
 

@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import AsignacionesTable from '../../components/AsignacionesTable';
 import { supabase } from '../../services/supabaseClient';
 import {
   FileText,
@@ -88,16 +89,16 @@ const SelectWithSearch: React.FC<SelectWithSearchProps> = ({
 
       {isOpen && !disabled && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-          <div className="p-2">
+          <div className="p-3">
             <Input
               type="text"
               placeholder="Buscar..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="mb-2"
+              className="mb-2 h-8 text-sm"
             />
           </div>
-          <div className="max-h-60 overflow-auto">
+          <div className="max-h-60 overflow-auto px-2 pb-2">
             {filteredOptions.map((option) => (
               <button
                 key={option.id}
@@ -107,7 +108,7 @@ const SelectWithSearch: React.FC<SelectWithSearchProps> = ({
                   setIsOpen(false);
                   setSearchTerm('');
                 }}
-                className="w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                className="w-full px-2 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none text-xs rounded mb-1"
               >
                 {option.nombre}
               </button>
@@ -207,16 +208,16 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 
       {isOpen && !disabled && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-          <div className="p-2">
+          <div className="p-3">
             <Input
               type="text"
               placeholder="Buscar unidades..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="mb-2"
+              className="mb-2 h-8 text-sm"
             />
           </div>
-          <div className="max-h-60 overflow-auto">
+          <div className="max-h-60 overflow-auto px-2 pb-2">
             {(() => {
               // Agrupar opciones por zona
               const groupedOptions = filteredOptions.reduce((groups, option) => {
@@ -231,7 +232,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
               return Object.entries(groupedOptions).map(([zona, opciones]) => (
                 <div key={zona}>
                   {/* Header de zona */}
-                  <div className="px-3 py-2 bg-gray-100 text-sm font-semibold text-gray-700 border-b border-gray-200">
+                  <div className="px-2 py-1.5 bg-gray-100 text-xs font-semibold text-gray-700 border-b border-gray-200">
                     {zona}
                   </div>
                   {/* Opciones de la zona */}
@@ -242,10 +243,10 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                         key={option.id}
                         type="button"
                         onClick={() => toggleOption(option.id)}
-                        className="w-full px-6 py-2 text-left focus:outline-none text-sm"
+                        className="w-full px-4 py-1.5 text-left focus:outline-none text-xs mb-1 rounded"
                         style={{
                           backgroundColor: isSelected ? '#ecfeff' : 'transparent',
-                          borderLeft: isSelected ? '4px solid #06b6d4' : 'none'
+                          borderLeft: isSelected ? '3px solid #06b6d4' : 'none'
                         }}
                         onMouseEnter={(e) => {
                           if (!isSelected) {
@@ -263,12 +264,12 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => { }} // El onChange se maneja en el onClick del botón
-                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
                           />
                           <span className={isSelected ? 'text-cyan-800 font-medium' : 'text-gray-700'}>
                             {option.nombre}
                           </span>
-                          <span className={`text-xs ml-auto px-2 py-1 rounded-full ${
+                          <span className={`text-xs ml-auto px-1.5 py-0.5 rounded-full ${
                             (option as any).tiene_menu 
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-gray-100 text-gray-600'
@@ -292,6 +293,8 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 const AsignarMenusPage: React.FC = () => {
   const { toast } = useToast();
   const { showLoading, hideLoading } = useGlobalLoading();
+  
+  const [activeTab, setActiveTab] = useState('asignaciones');
 
   const [contratosDisponibles, setContratosDisponibles] = useState<ContratoView[]>([]);
   const [selectedContrato, setSelectedContrato] = useState<string>('');
@@ -1139,28 +1142,114 @@ const AsignarMenusPage: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
+  // Funciones para manejar acciones de la tabla
+  const handleVerAsignacion = (asignacion: any) => {
+    console.log('Ver asignación:', asignacion);
+    toast({
+      title: "Ver asignación",
+      description: `Viendo detalles de la asignación: ${asignacion.nombre_receta}`,
+    });
+  };
+
+  const handleEditarAsignacion = (asignacion: any) => {
+    console.log('Editar asignación:', asignacion);
+    // Cambiar al tab de formulario y cargar los datos para edición
+    setActiveTab('formulario');
+    toast({
+      title: "Editar asignación",
+      description: `Editando asignación: ${asignacion.nombre_receta}`,
+    });
+  };
+
+  const handleEliminarAsignacion = async (asignacion: any) => {
+    try {
+      showLoading('Eliminando asignación...');
+      
+      const { error } = await supabase
+        .from('inv_productos_unidad_servicio')
+        .delete()
+        .eq('id', asignacion.id);
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Asignación eliminada",
+        description: `La asignación de "${asignacion.nombre_receta}" ha sido eliminada exitosamente`,
+        variant: "default",
+      });
+
+      // Recargar la tabla
+      // La tabla se recargará automáticamente debido a su useEffect
+      
+    } catch (error: any) {
+      console.error('Error eliminando asignación:', error);
+      toast({
+        title: "Error al eliminar",
+        description: error.message || 'Ocurrió un error al eliminar la asignación',
+        variant: "destructive",
+      });
+    } finally {
+      hideLoading();
+    }
+  };
+
+  const handleNuevaAsignacion = () => {
+    // Cambiar al tab de formulario y limpiar el formulario
+    setActiveTab('formulario');
+    limpiarFormulario();
+    toast({
+      title: "Nueva asignación",
+      description: "Formulario listo para crear una nueva asignación",
+    });
+  };
+
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2 mb-2">
+    <div className="p-4 max-w-full mx-auto">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2">
           <FileText className="w-8 h-8 text-cyan-600" />
           Asignación de Menús
         </h1>
-        <p className="text-gray-600">Gestiona la asignación de productos a los menús de los contratos</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-teal-600" />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 bg-cyan-100/60 p-1 rounded-lg">
+          <TabsTrigger
+            value="asignaciones"
+            className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-md transition-all duration-300"
+          >
+            Listado de Asignaciones
+          </TabsTrigger>
+          <TabsTrigger
+            value="formulario"
+            className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-md transition-all duration-300"
+          >
             Configuración de Menús
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="asignaciones" className="mt-6">
+          <AsignacionesTable
+            onDelete={handleEliminarAsignacion}
+            onAdd={handleNuevaAsignacion}
+          />
+        </TabsContent>
+
+        <TabsContent value="formulario" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-teal-600" />
+                Configuración de Menús
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
           {/* Campos superiores */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-600" />
                 Seleccione un Contrato
               </label>
@@ -1175,7 +1264,7 @@ const AsignarMenusPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-indigo-600" />
                 Seleccione una o varias Unidades de Servicio
               </label>
@@ -1522,8 +1611,10 @@ const AsignarMenusPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Diálogo de confirmación para guardar */}
       {showConfirmDialog && (
