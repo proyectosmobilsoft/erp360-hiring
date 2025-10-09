@@ -33,6 +33,7 @@ export interface GroupedTableProps {
   groupIcons?: Record<string, React.ReactNode>;
   groupDisplayNames?: (groupValue: string, field: string) => string;
   isItemSelected?: (item: GroupedTableData) => boolean;
+  isItemDisabled?: (item: GroupedTableData) => boolean;
 }
 
 interface GroupData {
@@ -59,7 +60,8 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
   showCheckboxes = false,
   groupIcons = {},
   groupDisplayNames,
-  isItemSelected
+  isItemSelected,
+  isItemDisabled
 }) => {
   // Estado para controlar grupos expandidos/colapsados
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
@@ -298,11 +300,12 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                         <input
                           type="checkbox"
                           checked={checkItemSelected(item)}
+                          disabled={isItemDisabled ? isItemDisabled(item) : false}
                           onChange={(e) => {
                             e.stopPropagation();
                             handleItemSelect(item, e.target.checked);
                           }}
-                          className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3"
+                          className={`rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-3 h-3 ${isItemDisabled && isItemDisabled(item) ? 'opacity-50 cursor-not-allowed' : ''}`}
                         />
                       </div>
                     </TableCell>

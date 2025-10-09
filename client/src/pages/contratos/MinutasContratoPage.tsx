@@ -296,7 +296,7 @@ const MinutasContratoPage: React.FC = () => {
   const [selectedContrato, setSelectedContrato] = useState<string>('');
   const [contratoSeleccionado, setContratoSeleccionado] = useState<ContratoView | null>(null);
   const [zonasDisponibles, setZonasDisponibles] = useState<{ id: string; nombre: string }[]>([]);
-  const [zonasSeleccionadas, setZonasSeleccionadas] = useState<string[]>([]);
+  const [zonaSeleccionada, setZonaSeleccionada] = useState<string>('');
   const [menusZona, setMenusZona] = useState<any[]>([]);
   const [activeMenuTab, setActiveMenuTab] = useState<'estandar' | 'especial'>('estandar');
   const [zonaActiva, setZonaActiva] = useState<string>('');
@@ -439,7 +439,8 @@ const MinutasContratoPage: React.FC = () => {
   const handleContratoChange = async (contratoValue: string) => {
     console.log('🔄 Cambiando contrato a:', contratoValue);
     setSelectedContrato(contratoValue);
-    setZonasSeleccionadas([]);
+    setZonaSeleccionada('');
+    setZonaActiva('');
     setMenusZona([]);
 
     if (contratoValue) {
@@ -462,15 +463,16 @@ const MinutasContratoPage: React.FC = () => {
     }
   };
 
-  const handleZonaChange = async (zonas: string[]) => {
-    setZonasSeleccionadas(zonas);
-    setZonaActiva(''); // Reset zona activa
+  const handleZonaChange = async (zonaId: string) => {
+    setZonaSeleccionada(zonaId);
 
-    if (zonas.length > 0) {
-      // Cargar menús de la primera zona seleccionada
-      await cargarMenusPorZona(zonas[0]);
+    if (zonaId) {
+      // Ejecutar automáticamente el click en la zona
+      await handleZonaClick(zonaId);
     } else {
+      setZonaActiva('');
       setMenusZona([]);
+      setUnidadesConMenus([]);
     }
   };
 
@@ -639,10 +641,10 @@ const MinutasContratoPage: React.FC = () => {
   }, [overlayVisible]);
 
   const handleGuardarMinutas = () => {
-    if (zonasSeleccionadas.length === 0) {
+    if (!zonaSeleccionada) {
       toast({
-        title: "Seleccione zonas",
-        description: "Debe seleccionar al menos una zona para guardar la configuración",
+        title: "Seleccione una zona",
+        description: "Debe seleccionar una zona para guardar la configuración",
         variant: "destructive",
       });
       return;
@@ -655,14 +657,7 @@ const MinutasContratoPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-extrabold text-cyan-800 flex items-center gap-2 mb-2">
-          <FileText className="w-8 h-8 text-cyan-600" />
-          Datos del Contrato
-        </h1>
-        <p className="text-gray-600">Información y configuración del contrato seleccionado</p>
-      </div>
+    <div className="p-4 max-w-full mx-auto">
 
       <Card>
         <CardHeader>
@@ -820,127 +815,19 @@ const MinutasContratoPage: React.FC = () => {
                 <MapPin className="w-3 h-3 text-indigo-600" />
                 Grupos / Zonas
               </label>
-              <MultiSelect
+              <SelectWithSearch
                 options={zonasDisponibles}
-                selectedValues={zonasSeleccionadas}
+                value={zonaSeleccionada}
                 onChange={handleZonaChange}
-                placeholder="Seleccionar zonas..."
+                placeholder="Seleccionar zona..."
+                disabled={!selectedContrato}
               />
             </div>
           </div>
 
-          {/* Sección de Grupos/Zonas Seleccionados - Compacta */}
-          {zonasSeleccionadas.length > 0 && (
-            <div className="mb-4">
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-teal-600" />
-                  Zonas Seleccionadas ({zonasSeleccionadas.length})
-                </h3>
-
-                {/* Lista compacta de zonas con overlay desplegable */}
-                <div className="flex flex-wrap gap-2">
-                  {zonasSeleccionadas.map((zonaId) => {
-                    const zona = zonasDisponibles.find(z => z.id === zonaId);
-                    if (!zona) return null;
-
-                    return (
-                      <div
-                        key={zonaId}
-                        className="zona-container relative"
-                      >
-                        {/* Botón Ver Unidades - Fuera de la card, arriba a la derecha */}
-                        <button
-                          className="absolute -top-1 -right-1 z-10 bg-teal-600 hover:bg-teal-700 text-white rounded-full p-1.5 shadow-md transition-colors"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleSoloVerUnidades(zonaId);
-                          }}
-                          title="Ver unidades de servicio"
-                        >
-                          <Eye className="w-3 h-3" />
-                        </button>
-
-                        {/* Card de la zona */}
-                        <div
-                          className={`border border-gray-300 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:shadow-md ${zonaActiva === zonaId
-                              ? 'border-teal-500 bg-teal-100 shadow-md'
-                              : 'hover:border-gray-400 bg-white'
-                            }`}
-                          onClick={() => {
-                            if (zonaActiva === zonaId) {
-                              setZonaActiva(''); // Deseleccionar si ya está seleccionada
-                            } else {
-                              handleZonaClick(zonaId); // Seleccionar si no está seleccionada
-                            }
-                          }}
-                          title={zonaActiva === zonaId ? "Hacer clic para deseleccionar zona" : "Hacer clic para seleccionar zona y ver calendario"}
-                        >
-                          <div className="text-xs font-medium text-gray-800 truncate">
-                            {zona.nombre}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            NO PPL. {calcularPPLPorZona(zonaId)}
-                          </div>
-                        </div>
-
-                        {/* Overlay desplegable */}
-                        {overlayVisible === zonaId && (
-                          <div className="overlay-unidades absolute top-full left-0 mt-1 z-50 bg-white border border-blue-200 rounded-lg shadow-lg min-w-64 max-w-80 animate-in slide-in-from-top-2 duration-200">
-                            {/* Header del overlay */}
-                            <div className="bg-blue-600 text-white px-3 py-2 rounded-t-lg">
-                              <h4 className="text-sm font-semibold flex items-center gap-2">
-                                <Users className="w-4 h-4" />
-                                Unidades de Servicio
-                              </h4>
-                            </div>
-
-                            {/* Contenido del overlay */}
-                            <div className="p-2 max-h-64 overflow-y-auto">
-                              {cargandoUnidades ? (
-                                <div className="text-center py-4">
-                                  <div className="text-gray-500">
-                                    <Users className="w-6 h-6 mx-auto mb-2 text-gray-400 animate-pulse" />
-                                    <p className="text-xs">Cargando unidades...</p>
-                                  </div>
-                                </div>
-                              ) : unidadesOverlay.length > 0 ? (
-                                <div className="space-y-1">
-                                  {unidadesOverlay.map((unidad) => (
-                                    <div key={unidad.unidad_id} className="flex items-center gap-2 text-xs text-blue-800 hover:bg-blue-50 p-1 rounded">
-                                      <div className="w-1.5 h-1.5 bg-blue-600 rounded-full flex-shrink-0"></div>
-                                      <span className="font-medium">NO PPL.</span>
-                                      <Users className="w-3 h-3 text-blue-600 flex-shrink-0" />
-                                      <span className="font-semibold">{Math.floor(Math.random() * 9000) + 1000}</span>
-                                      <div className="ml-auto text-blue-700 truncate">
-                                        LA PICOTA - {unidad.unidad_nombre.toUpperCase()}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="text-center py-4">
-                                  <div className="text-gray-500">
-                                    <Users className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                                    <p className="text-xs">No hay unidades</p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Sección de Calendario de Menús */}
+          {/* Sección de Calendario de Menús - Con más espaciado */}
           {zonaActiva ? (
-            <div className="mb-6">
+            <div className="mt-8 mb-6">
               {cargandoUnidades ? (
                 <div className="bg-white border border-gray-300 rounded-lg p-8 text-center">
                   <div className="text-gray-500">
@@ -969,36 +856,21 @@ const MinutasContratoPage: React.FC = () => {
                       nombre: menu.nombre_receta,
                       tipo: menu.nombre_servicio as 'DESAYUNO' | 'ALMUERZO' | 'CENA' | 'REFRIGERIO',
                       codigo: menu.codigo,
-                      ingredientes: menu.ingredientes || []
+                      ingredientes: menu.ingredientes || [],
+                      ingredientes_detallados: menu.ingredientes_detallados || []
                     }))
                   }))}
                 />
               )}
             </div>
-          ) : zonasSeleccionadas.length > 0 ? (
-            <div className="mb-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-                <div className="text-blue-600">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                    <UtensilsCrossed className="w-8 h-8 text-blue-500" />
-                  </div>
-                  <h4 className="text-lg font-semibold text-blue-700 mb-2">
-                    Selecciona una Zona
-                  </h4>
-                  <p className="text-sm text-blue-600">
-                    Haz clic en una de las zonas seleccionadas arriba para visualizar el calendario de menús
-                  </p>
-                </div>
-              </div>
-            </div>
           ) : null}
 
           {/* Botón Guardar */}
-          <div className="flex justify-end">
+          <div className="flex justify-end mt-6">
             <Button
               onClick={handleGuardarMinutas}
               className="bg-teal-600 hover:bg-teal-700 text-white"
-              disabled={zonasSeleccionadas.length === 0}
+              disabled={!zonaSeleccionada}
             >
               <Check className="w-4 h-4 mr-2" />
               Guardar Configuración

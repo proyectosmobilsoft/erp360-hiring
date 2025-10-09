@@ -7,6 +7,15 @@ export interface UnidadConMenu {
   menus: MenuAsignado[];
 }
 
+export interface IngredienteDetallado {
+  id_producto: number;
+  nombre: string;
+  cantidad: number;
+  id_componente_menu: number | null;
+  nombre_componente_menu: string | null;
+  nombre_sublinea: string | null;
+}
+
 export interface MenuAsignado {
   id_producto: number;
   nombre_receta: string;
@@ -15,6 +24,7 @@ export interface MenuAsignado {
   nombre_servicio: string;
   fecha_asignacion: string;
   ingredientes?: string[];
+  ingredientes_detallados?: IngredienteDetallado[];
   descripcion?: string;
 }
 
@@ -56,6 +66,68 @@ const generarIngredientes = (nombreProducto: string): string[] => {
 };
 
 export class MinutasService {
+  /**
+   * Obtiene los ingredientes detallados de una receta con su información de componente de menú
+   */
+  static async getIngredientesDetalladosReceta(idReceta: number): Promise<IngredienteDetallado[]> {
+    try {
+      const { data: ingredientes, error } = await supabase
+        .from('inv_detalle_productos')
+        .select(`
+          id_producto,
+          cantidad,
+          inv_productos!fk_detalle_productos_ingrediente (
+            id,
+            nombre,
+            id_sublineas,
+            inv_sublineas!fk_productos_sublineas (
+              id,
+              nombre,
+              id_componente_menu,
+              prod_componentes_menus!fk_sublineas_componente_menu (
+                id,
+                nombre
+              )
+            )
+          )
+        `)
+        .eq('id_maestro_producto', idReceta)
+        .eq('estado', 1);
+
+      if (error) {
+        console.error('❌ Error obteniendo ingredientes de receta:', error);
+        return [];
+      }
+
+      if (!ingredientes || ingredientes.length === 0) {
+        return [];
+      }
+
+      // Mapear los ingredientes con su información completa
+      const ingredientesDetallados: IngredienteDetallado[] = ingredientes.map(ing => {
+        const producto = Array.isArray(ing.inv_productos) ? ing.inv_productos[0] : ing.inv_productos;
+        const sublinea = producto?.inv_sublineas ? 
+          (Array.isArray(producto.inv_sublineas) ? producto.inv_sublineas[0] : producto.inv_sublineas) : null;
+        const componenteMenu = sublinea?.prod_componentes_menus ?
+          (Array.isArray(sublinea.prod_componentes_menus) ? sublinea.prod_componentes_menus[0] : sublinea.prod_componentes_menus) : null;
+
+        return {
+          id_producto: producto?.id || 0,
+          nombre: producto?.nombre || 'Sin nombre',
+          cantidad: ing.cantidad || 0,
+          id_componente_menu: componenteMenu?.id || null,
+          nombre_componente_menu: componenteMenu?.nombre || null,
+          nombre_sublinea: sublinea?.nombre || null
+        };
+      });
+
+      return ingredientesDetallados;
+    } catch (error) {
+      console.error('❌ Error inesperado obteniendo ingredientes:', error);
+      return [];
+    }
+  }
+
   /**
    * Obtiene las unidades de servicio de una zona específica con sus menús asignados
    */
@@ -172,7 +244,7 @@ export class MinutasService {
       console.log('🍽️ Relaciones encontradas:', relaciones);
 
       // Combinar los datos usando la misma lógica que asignacionesService
-      const unidadesConMenus: UnidadConMenu[] = unidades.map(unidad => {
+      const unidadesConMenus: UnidadConMenu[] = await Promise.all(unidades.map(async (unidad) => {
         // Filtrar asignaciones para esta unidad
         const asignacionesDeUnidad = asignaciones?.filter(asignacion => 
           asignacion.id_unidad_servicio === unidad.id
@@ -183,7 +255,7 @@ export class MinutasService {
           primerAsignacion: asignacionesDeUnidad[0]
         });
 
-        const menusFormateados: MenuAsignado[] = asignacionesDeUnidad.map(asignacion => {
+        const menusRaw = await Promise.all(asignacionesDeUnidad.map(async (asignacion) => {
           // Buscar la relación correspondiente
           const relacion = relaciones?.find(r => r.id === asignacion.id_producto_by_unidad);
           if (!relacion) {
@@ -222,23 +294,50 @@ export class MinutasService {
             id: producto.id,
             nombre: producto.nombre,
             codigo: producto.codigo,
-            clase_servicio: producto.inv_clase_servicios
+            clase_servicio_raw: producto.inv_clase_servicios,
+            clase_servicio_tipo: typeof producto.inv_clase_servicios,
+            clase_servicio_isArray: Array.isArray(producto.inv_clase_servicios),
+            clase_servicio_length: producto.inv_clase_servicios?.length,
+            clase_servicio_primer_elemento: producto.inv_clase_servicios?.[0]
           });
           
           // Simular ingredientes basados en el nombre del producto
           const ingredientes = generarIngredientes(producto.nombre);
+          
+          // Obtener ingredientes detallados con su relación a componentes de menú
+          const ingredientesDetallados = await MinutasService.getIngredientesDetalladosReceta(producto.id);
+          
+          console.log(`📋 Ingredientes detallados de ${producto.nombre}:`, {
+            count: ingredientesDetallados.length,
+            ingredientes: ingredientesDetallados
+          });
+          
+          // Determinar el nombre del servicio
+          let nombreServicio = '';
+          if (producto.inv_clase_servicios) {
+            if (Array.isArray(producto.inv_clase_servicios) && producto.inv_clase_servicios.length > 0) {
+              nombreServicio = producto.inv_clase_servicios[0]?.nombre || '';
+            } else if (!Array.isArray(producto.inv_clase_servicios) && typeof producto.inv_clase_servicios === 'object' && 'nombre' in producto.inv_clase_servicios) {
+              nombreServicio = (producto.inv_clase_servicios as any).nombre;
+            }
+          }
+          
+          console.log(`🔍 Nombre servicio determinado para ${producto.nombre}: "${nombreServicio}"`);
           
           return {
             id_producto: producto.id,
             nombre_receta: producto.nombre,
             codigo: producto.codigo,
             unidad_servicio: unidad.nombre_servicio,
-            nombre_servicio: producto.inv_clase_servicios?.[0]?.nombre || '',
+            nombre_servicio: nombreServicio,
             fecha_asignacion: asignacion.created_at,
             ingredientes: ingredientes,
+            ingredientes_detallados: ingredientesDetallados,
             descripcion: producto.nombre
           };
-        }).filter(Boolean) as MenuAsignado[];
+        }));
+        
+        const menusFormateados: MenuAsignado[] = menusRaw.filter(Boolean) as MenuAsignado[];
 
         return {
           unidad_id: unidad.id,
@@ -246,7 +345,7 @@ export class MinutasService {
           zona_nombre: zonaNombre,
           menus: menusFormateados
         };
-      });
+      }));
 
       console.log('✅ Unidades con menús procesadas:', unidadesConMenus);
 

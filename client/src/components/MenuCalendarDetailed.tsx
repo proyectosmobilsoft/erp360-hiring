@@ -1,16 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { 
-  Calendar as CalendarIcon, 
-  UtensilsCrossed, 
-  MapPin, 
+import {
+  Calendar as CalendarIcon,
+  UtensilsCrossed,
+  MapPin,
   Clock,
   Sun,
   Moon,
   Package,
   Coffee
 } from 'lucide-react';
+import { supabase } from '../services/supabaseClient';
+
+interface IngredienteDetallado {
+  id_producto: number;
+  nombre: string;
+  cantidad: number;
+  id_componente_menu: number | null;
+  nombre_componente_menu: string | null;
+  nombre_sublinea: string | null;
+}
 
 interface MenuItem {
   id: number;
@@ -18,6 +28,7 @@ interface MenuItem {
   tipo: 'DESAYUNO' | 'ALMUERZO' | 'CENA' | 'REFRIGERIO';
   codigo: string;
   ingredientes: string[];
+  ingredientes_detallados?: IngredienteDetallado[];
 }
 
 interface UnitMenu {
@@ -25,6 +36,18 @@ interface UnitMenu {
   unidad_nombre: string;
   fecha_inicio: string;
   menus: MenuItem[];
+}
+
+interface ClaseServicio {
+  id: number;
+  nombre: string;
+  orden: number;
+}
+
+interface ComponenteMenu {
+  id: number;
+  nombre: string;
+  id_clase_servicio: number;
 }
 
 interface MenuCalendarDetailedProps {
@@ -40,12 +63,59 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   fechaEjecucion,
   unidadesMenus
 }) => {
+  const [clasesServicios, setClasesServicios] = useState<ClaseServicio[]>([]);
+  const [componentesMenus, setComponentesMenus] = useState<ComponenteMenu[]>([]);
+  const [cargando, setCargando] = useState(true);
+
+  // Cargar clases de servicios y componentes de menú
+  useEffect(() => {
+    const cargarDatos = async () => {
+      setCargando(true);
+      try {
+        // Cargar clases de servicios
+        const { data: clases, error: errorClases } = await supabase
+          .from('inv_clase_servicios')
+          .select('id, nombre, orden')
+          .eq('estado', 1)
+          .order('orden');
+
+        if (errorClases) {
+          console.error('❌ Error cargando clases de servicios:', errorClases);
+        } else {
+          setClasesServicios(clases || []);
+          console.log('✅ Clases de servicios cargadas:', clases);
+        }
+
+        // Cargar componentes de menú con su relación a clase de servicio
+        const { data: componentes, error: errorComponentes } = await supabase
+          .from('prod_componentes_menus')
+          .select('id, nombre, id_clase_servicio')
+          .order('id');
+
+        if (errorComponentes) {
+          console.error('❌ Error cargando componentes de menú:', errorComponentes);
+        } else {
+          setComponentesMenus(componentes || []);
+          console.log('✅ Componentes de menú cargados:', componentes);
+        }
+      } catch (error) {
+        console.error('❌ Error inesperado cargando datos:', error);
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    cargarDatos();
+  }, []);
+
   // Debug: Log de datos recibidos
   console.log('📅 MenuCalendarDetailed recibió:', {
     zonaId,
     zonaNombre,
     fechaEjecucion,
     unidadesCount: unidadesMenus.length,
+    clasesServicios: clasesServicios.length,
+    componentesMenus: componentesMenus.length,
     unidades: unidadesMenus.map(unidad => ({
       id: unidad.unidad_id,
       nombre: unidad.unidad_nombre,
@@ -54,7 +124,14 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
         id: menu.id,
         nombre: menu.nombre,
         tipo: menu.tipo,
-        ingredientes: menu.ingredientes
+        codigo: menu.codigo,
+        ingredientes: menu.ingredientes,
+        ingredientes_detallados: menu.ingredientes_detallados?.map(ing => ({
+          nombre: ing.nombre,
+          id_componente_menu: ing.id_componente_menu,
+          nombre_componente_menu: ing.nombre_componente_menu
+        })),
+        ingredientes_detallados_count: menu.ingredientes_detallados?.length || 0
       }))
     }))
   });
@@ -90,6 +167,22 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     }
   };
 
+  // Función para obtener el color del borde superior según el tipo de menú
+  const getMenuTypeBorderColor = (tipo: string) => {
+    switch (tipo) {
+      case 'DESAYUNO':
+        return 'border-t-yellow-500';
+      case 'ALMUERZO':
+        return 'border-t-orange-500';
+      case 'CENA':
+        return 'border-t-purple-500';
+      case 'REFRIGERIO':
+        return 'border-t-green-500';
+      default:
+        return 'border-t-gray-500';
+    }
+  };
+
   // Función para formatear la fecha
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -105,20 +198,20 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   const getWeekDates = (startDate: string) => {
     const start = new Date(startDate);
     const dates = [];
-    
+
     // Ajustar al lunes de la semana actual
     const dayOfWeek = start.getDay();
     const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const mondayStart = new Date(start);
     mondayStart.setDate(start.getDate() + daysToMonday);
-    
+
     // Generar 28 días (4 semanas)
     for (let i = 0; i < 28; i++) {
       const date = new Date(mondayStart);
       date.setDate(mondayStart.getDate() + i);
       dates.push(date);
     }
-    
+
     return dates;
   };
 
@@ -127,14 +220,14 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     const start = new Date(startDate);
     const weeks = [];
     let currentWeekStart = new Date(start);
-    
+
     // Ajustar al lunes de la semana actual
     const dayOfWeek = start.getDay();
     const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     currentWeekStart.setDate(start.getDate() + daysToMonday);
-    
+
     let weekNumber = 1;
-    
+
     // Generar 4 semanas (28 días)
     for (let week = 0; week < 4; week++) {
       const weekDates = [];
@@ -148,7 +241,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
         dates: weekDates
       });
     }
-    
+
     return weeks;
   };
 
@@ -168,7 +261,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   const weeksGrouped = getWeeksGrouped(fechaEjecucion);
 
   return (
-    <Card className="w-full">
+    <Card className="w-full" style={{ zoom: '0.80' }} >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <CalendarIcon className="w-5 h-5 text-teal-600" />
@@ -182,7 +275,14 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        {unidadesMenus.length === 0 ? (
+        {cargando ? (
+          <div className="text-center py-8">
+            <div className="text-gray-500">
+              <UtensilsCrossed className="w-12 h-12 mx-auto mb-4 text-gray-300 animate-pulse" />
+              <p>Cargando datos del calendario...</p>
+            </div>
+          </div>
+        ) : unidadesMenus.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-gray-500">
               <UtensilsCrossed className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -209,131 +309,216 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                     <table className="w-full border-collapse border border-gray-300">
-                       {/* Header de semanas agrupadas */}
-                       <thead>
-                         <tr className="bg-gray-100">
-                           <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-gray-800" colSpan={2}>
-                             SEMANAS
-                           </th>
-                           {weeksGrouped.map((week, weekIndex) => {
-                             const weekColors = [
-                               'bg-blue-200 text-blue-900',
-                               'bg-green-200 text-green-900', 
-                               'bg-purple-200 text-purple-900',
-                               'bg-orange-200 text-orange-900'
-                             ];
-                             return (
-                               <th key={weekIndex} className={`border border-gray-300 p-2 text-center text-xs font-semibold ${weekColors[weekIndex]}`} colSpan={7}>
-                                 SEMANA {week.weekNumber}
-                               </th>
-                             );
-                           })}
-                         </tr>
-                       </thead>
+                    <table className="w-full border-collapse border border-gray-300">
+                      {/* Header de semanas agrupadas */}
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-gray-800" colSpan={2}>
+                            SEMANAS
+                          </th>
+                          {weeksGrouped.map((week, weekIndex) => {
+                            const weekColors = [
+                              'bg-blue-200 text-blue-900',
+                              'bg-green-200 text-green-900',
+                              'bg-purple-200 text-purple-900',
+                              'bg-orange-200 text-orange-900'
+                            ];
+                            return (
+                              <th key={weekIndex} className={`border border-gray-300 p-2 text-center text-xs font-semibold ${weekColors[weekIndex]}`} colSpan={7}>
+                                SEMANA {week.weekNumber}
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
 
-                       {/* Header de días individuales */}
-                       <thead>
-                         <tr className="bg-gray-50">
-                           <th className="border border-gray-300 p-3 text-left text-sm font-semibold text-gray-700" colSpan={2}>
-                             DÍAS
-                           </th>
-                           {weekDates.map((date, i) => {
-                             const weekIndex = Math.floor(i / 7);
-                             const dayColors = [
-                               'bg-blue-100 text-blue-800',
-                               'bg-green-100 text-green-800', 
-                               'bg-purple-100 text-purple-800',
-                               'bg-orange-100 text-orange-800'
-                             ];
-                             return (
-                               <th key={i} className={`border border-gray-300 p-3 text-center text-xs font-semibold whitespace-nowrap ${dayColors[weekIndex]}`}>
-                                 {`${getDayName(date)} ${date.getDate()}/${getMonthName(date)}`}
-                               </th>
-                             );
-                           })}
-                         </tr>
-                       </thead>
+                      {/* Header de días individuales */}
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="border border-gray-300 p-3 text-left text-sm font-semibold text-gray-700" colSpan={2}>
+                            DÍAS
+                          </th>
+                          {weekDates.map((date, i) => {
+                            const weekIndex = Math.floor(i / 7);
+                            const dayColors = [
+                              'bg-blue-100 text-blue-800',
+                              'bg-green-100 text-green-800',
+                              'bg-purple-100 text-purple-800',
+                              'bg-orange-100 text-orange-800'
+                            ];
+                            return (
+                              <th key={i} className={`border border-gray-300 p-3 text-center text-xs font-semibold whitespace-nowrap ${dayColors[weekIndex]}`}>
+                                {`${getDayName(date)} ${date.getDate()}/${getMonthName(date)}`}
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
 
-                       {/* Header de menús individuales */}
-                       <thead>
-                         <tr className="bg-blue-50">
-                           <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700" colSpan={2}>
-                             COMPONENTE/MENU
-                           </th>
-                           {weekDates.map((date, i) => (
-                             <th key={i} className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700 w-64 min-w-64">
-                               Menu {i + 1}
-                             </th>
-                           ))}
-                         </tr>
-                       </thead>
+                      {/* Header de menús individuales */}
+                      <thead>
+                        <tr className="bg-blue-50">
+                          <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700" colSpan={2}>
+                            COMPONENTE/MENU
+                          </th>
+                          {weekDates.map((date, i) => (
+                            <th key={i} className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700 w-64 min-w-64">
+                              Menu {i + 1}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
 
                       <tbody>
-                        {/* Mostrar menús organizados por fecha */}
-                        {unidad.menus.length > 0 ? (
-                          // Mostrar cada menú individualmente
-                          unidad.menus.map((menu, menuIndex) => (
-                            <React.Fragment key={`menu-${menu.id}-${menuIndex}`}>
-                              {/* Fila del menú */}
-                              <tr>
-                                <td className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(menu.tipo.toUpperCase())}`}>
-                                  <div className="flex items-center gap-2">
-                                    {getMenuIcon(menu.tipo.toUpperCase())}
-                                    {menu.tipo.toUpperCase()}
-                                  </div>
-                                </td>
-                                 <td className={`border border-gray-300 p-2 text-center text-xs font-medium w-48 min-w-48 ${getMenuTypeColor(menu.tipo.toUpperCase())}`}>
-                                   {menu.nombre}
-                                 </td>
-                                 {weekDates.map((date, i) => {
-                                   // Mostrar ingredientes solo en la columna correspondiente al orden del menú
-                                   // Para 28 días, distribuimos los menús cíclicamente
-                                   const menuIndexForDay = menuIndex % unidad.menus.length;
-                                   const weekIndex = Math.floor(i / 7);
-                                   const weekBackgroundColors = [
-                                     'bg-blue-50',
-                                     'bg-green-50', 
-                                     'bg-purple-50',
-                                     'bg-orange-50'
-                                   ];
-                                   
-                                   if (i === menuIndexForDay || (unidad.menus.length === 1 && i === menuIndex)) {
-                                     return (
-                                       <td key={i} className={`border border-gray-300 p-0 text-xs w-64 min-w-64 ${weekBackgroundColors[weekIndex]}`}>
-                                        <div className="flex flex-col h-full">
-                                          {menu.ingredientes.map((ingrediente, ingredienteIndex) => (
-                                            <div 
-                                              key={ingredienteIndex}
-                                              className={`flex-1 p-2 border-b border-gray-300 last:border-b-0 ${getMenuTypeColor(menu.tipo.toUpperCase())} text-center font-medium text-xs`}
-                                              style={{ fontSize: '0.65rem' }}
-                                              title={ingrediente}
-                                            >
-                                              {ingrediente}
-                                            </div>
-                                          ))}
-                                        </div>
+                        {/* Mostrar menús organizados por clase de servicio y componentes */}
+                        {clasesServicios.length > 0 ? (
+                          clasesServicios.map((claseServicio) => {
+                            // Obtener componentes relacionados con esta clase de servicio
+                            const componentesRelacionados = componentesMenus.filter(
+                              comp => comp.id_clase_servicio === claseServicio.id
+                            );
+
+                            // Si no hay componentes, mostrar solo la clase de servicio
+                            if (componentesRelacionados.length === 0) {
+                              return (
+                                <tr key={`clase-${claseServicio.id}`}>
+                                  <td className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} rowSpan={1}>
+                                    <div className="flex items-center gap-2">
+                                      {getMenuIcon(claseServicio.nombre.toUpperCase())}
+                                      {claseServicio.nombre.toUpperCase()}
+                                    </div>
+                                  </td>
+                                  <td className="border border-gray-300 p-2 text-center text-xs text-gray-400">
+                                    Sin componentes
+                                  </td>
+                                  {weekDates.map((date, i) => (
+                                    <td key={i} className="border border-gray-300 p-2 text-center text-xs">
+                                      -
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            }
+
+                            // Mostrar cada componente en una fila
+                            return componentesRelacionados.map((componente, compIndex) => {
+                              // Obtener las recetas que corresponden a esta clase de servicio
+                              const recetasDeClase = unidad.menus.filter(
+                                menu => menu.tipo.toUpperCase() === claseServicio.nombre.toUpperCase()
+                              );
+
+                              // Log para debug
+                              if (compIndex === 0) {
+                                console.log(`🔎 Buscando recetas para ${claseServicio.nombre} en unidad ${unidad.unidad_nombre}:`, {
+                                  claseServicio: claseServicio.nombre,
+                                  menusDisponibles: unidad.menus.map(m => ({ 
+                                    nombre: m.nombre, 
+                                    tipo: m.tipo,
+                                    ingredientes_detallados: m.ingredientes_detallados?.map(ing => ({
+                                      nombre: ing.nombre,
+                                      id_componente: ing.id_componente_menu,
+                                      componente: ing.nombre_componente_menu
+                                    }))
+                                  })),
+                                  recetasEncontradas: recetasDeClase.length,
+                                  recetas: recetasDeClase.map(r => ({ 
+                                    nombre: r.nombre, 
+                                    tipo: r.tipo, 
+                                    ingredientes_count: r.ingredientes_detallados?.length || 0,
+                                    ingredientes: r.ingredientes_detallados?.map(ing => ({
+                                      nombre: ing.nombre,
+                                      id_componente: ing.id_componente_menu,
+                                      componente: ing.nombre_componente_menu
+                                    }))
+                                  }))
+                                });
+                              }
+
+                              return (
+                                <tr key={`clase-${claseServicio.id}-comp-${componente.id}`} className={compIndex === 0 ? `border-t-[3px] ${getMenuTypeBorderColor(claseServicio.nombre.toUpperCase())}` : ''}>
+                                  {/* Primera subcolumna: Clase de Servicio (solo en la primera fila de componente) */}
+                                  {compIndex === 0 && (
+                                    <td 
+                                      className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} 
+                                      rowSpan={componentesRelacionados.length}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        {getMenuIcon(claseServicio.nombre.toUpperCase())}
+                                        {claseServicio.nombre.toUpperCase()}
+                                      </div>
+                                    </td>
+                                  )}
+                                  
+                                  {/* Segunda subcolumna: Componente de menú */}
+                                  <td className={`border border-gray-300 p-2 text-xs font-medium w-48 min-w-48 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`}>
+                                    {componente.nombre}
+                                  </td>
+                                  
+                                  {/* Columnas de días: Mostrar ingredientes del componente correspondiente */}
+                                  {weekDates.map((date, i) => {
+                                    // Obtener el color de fondo de la clase de servicio
+                                    const bgColor = getMenuTypeColor(claseServicio.nombre.toUpperCase());
+
+                                    // Verificar si hay una receta asignada para este menú (índice i corresponde a Menu 1, Menu 2, etc.)
+                                    // Solo mostramos ingredientes si el índice i es menor que la cantidad de recetas
+                                    if (i < recetasDeClase.length) {
+                                      const receta = recetasDeClase[i];
+                                      
+                                      // Filtrar los ingredientes de esta receta específica que pertenecen a este componente
+                                      // NOTA: Filtramos por NOMBRE del componente en lugar de ID porque el mismo componente
+                                      // (ej: PROTEICO, FRUTA) puede tener diferentes IDs para diferentes clases de servicio
+                                      const ingredientesDelComponente = receta.ingredientes_detallados?.filter(
+                                        ing => ing.nombre_componente_menu === componente.nombre
+                                      ) || [];
+
+                                      // Debug log para ver qué ingredientes se están procesando
+                                      if (i === 0 && ingredientesDelComponente.length > 0) {
+                                        console.log(`🔍 Menu ${i + 1} - Componente ${componente.nombre} para clase ${claseServicio.nombre}:`, {
+                                          receta: receta.nombre,
+                                          ingredientes: ingredientesDelComponente.map(ing => ({
+                                            nombre: ing.nombre,
+                                            componente: ing.nombre_componente_menu,
+                                            cantidad: ing.cantidad
+                                          }))
+                                        });
+                                      }
+
+                                      // Si esta receta tiene ingredientes para este componente, mostrarlos
+                                      if (ingredientesDelComponente.length > 0) {
+                                        return (
+                                          <td key={i} className={`border border-gray-300 p-1 text-xs w-64 min-w-64 ${bgColor}`}>
+                                            {ingredientesDelComponente.map((ingrediente, idx) => (
+                                              <div 
+                                                key={idx}
+                                                className="text-center font-semibold p-1 text-xs mb-1 last:mb-0 text-gray-600"
+                                                style={{ fontSize: '0.65rem' }}
+                                                title={`${ingrediente.nombre} (${ingrediente.cantidad})`}>
+                                                {ingrediente.nombre}
+                                              </div>
+                                            ))}
+                                          </td>
+                                        );
+                                      }
+                                    }
+
+                                    // Si no hay receta asignada para este menú o no hay ingredientes para este componente, celda vacía
+                                    return (
+                                      <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${bgColor}`}>
+                                        -
                                       </td>
                                     );
-                                  } else {
-                                    // Columnas vacías para otros días
-                                    return (
-                                       <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${weekBackgroundColors[weekIndex]}`}>
-                                         -
-                                       </td>
-                                    );
-                                  }
-                                })}
-                              </tr>
-                            </React.Fragment>
-                          ))
+                                  })}
+                                </tr>
+                              );
+                            });
+                          })
                         ) : (
-                          // Mostrar mensaje cuando no hay menús
+                          // Mostrar mensaje cuando no hay clases de servicio
                           <tr>
                             <td colSpan={weekDates.length + 2} className="border border-gray-300 p-8 text-center text-gray-500">
                               <div className="flex flex-col items-center gap-2">
                                 <UtensilsCrossed className="w-8 h-8 text-gray-300" />
-                                <p>No hay menús asignados a esta unidad</p>
+                                <p>No hay clases de servicio configuradas</p>
                               </div>
                             </td>
                           </tr>
