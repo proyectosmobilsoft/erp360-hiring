@@ -29,7 +29,8 @@ import {
   ChevronRight,
   Sun,
   Sunset,
-  AlertCircle
+  AlertCircle,
+  ChevronDown
 } from 'lucide-react';
 import { ContratosService, ContratoView } from '../../services/contratosService';
 import { UnidadesServicioService, UnidadServicio } from '../../services/unidadesServicioService';
@@ -307,6 +308,7 @@ const AsignarMenusPage: React.FC = () => {
   const [unidadesCargadas, setUnidadesCargadas] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState('');
   const [asignacionesUnidades, setAsignacionesUnidades] = useState<AsignacionUnidad[]>([]);
+  const [acordeonesExpandidos, setAcordeonesExpandidos] = useState<Set<string>>(new Set());
 
   // Función para eliminar duplicados del array de asignaciones
   const eliminarDuplicadosAsignaciones = (asignaciones: AsignacionUnidad[]): AsignacionUnidad[] => {
@@ -496,6 +498,73 @@ const AsignarMenusPage: React.FC = () => {
     
     return gruposExpandidos;
   }, [recetasAgrupadas]);
+
+  // Función para agrupar recetas por tipo de menú
+  const agruparRecetasPorTipoMenu = (recetas: any[]) => {
+    const grupos = {
+      'DESAYUNO': [] as any[],
+      'ALMUERZO': [] as any[],
+      'CENA': [] as any[],
+      'REFRIGERIO': [] as any[],
+      'GENERAL': [] as any[]
+    };
+
+    recetas.forEach(receta => {
+      const tipoMenu = receta.tipo_menu || 'GENERAL';
+      if (grupos[tipoMenu as keyof typeof grupos]) {
+        grupos[tipoMenu as keyof typeof grupos].push(receta);
+      } else {
+        grupos.GENERAL.push(receta);
+      }
+    });
+
+    return grupos;
+  };
+
+  // Función para obtener icono del tipo de menú
+  const getIconoTipoMenu = (tipoMenu: string) => {
+    switch (tipoMenu) {
+      case 'DESAYUNO':
+        return <Sun className="w-4 h-4 text-yellow-600" />;
+      case 'ALMUERZO':
+        return <UtensilsCrossed className="w-4 h-4 text-orange-600" />;
+      case 'CENA':
+        return <Moon className="w-4 h-4 text-blue-600" />;
+      case 'REFRIGERIO':
+        return <Coffee className="w-4 h-4 text-green-600" />;
+      default:
+        return <Package className="w-4 h-4 text-gray-600" />;
+    }
+  };
+
+  // Función para obtener color del tipo de menú
+  const getColorTipoMenu = (tipoMenu: string) => {
+    switch (tipoMenu) {
+      case 'DESAYUNO':
+        return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+      case 'ALMUERZO':
+        return 'bg-orange-50 border-orange-200 text-orange-800';
+      case 'CENA':
+        return 'bg-blue-50 border-blue-200 text-blue-800';
+      case 'REFRIGERIO':
+        return 'bg-green-50 border-green-200 text-green-800';
+      default:
+        return 'bg-gray-50 border-gray-200 text-gray-800';
+    }
+  };
+
+  // Función para toggle de acordeón
+  const toggleAcordeon = (acordeonKey: string) => {
+    setAcordeonesExpandidos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(acordeonKey)) {
+        newSet.delete(acordeonKey);
+      } else {
+        newSet.add(acordeonKey);
+      }
+      return newSet;
+    });
+  };
 
   // Iconos para los tipos de menú
   const menuTypeIcons = {
@@ -1552,22 +1621,48 @@ const AsignarMenusPage: React.FC = () => {
                                 </Button>
                               </div>
 
-                              {/* Lista de recetas asignadas */}
-                              <div className="space-y-2">
-                                <h6 className="text-xs font-medium text-gray-700 mb-2">
-                                  Recetas asignadas ({asignacion.recetas.length}):
-                                </h6>
-                                <div className="grid grid-cols-1 gap-2">
-                                  {asignacion.recetas.map((receta, recetaIndex) => (
-                                    <div
-                                      key={`${asignacion.unidadId}-${receta.id}-${recetaIndex}`}
-                                      className="flex items-center justify-between bg-white border border-gray-100 rounded-lg p-2"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
-                                        <span className="text-xs text-gray-700">{receta.nombre_receta}</span>
-                                        <span className="text-xs text-gray-400">({receta.codigo})</span>
-                                      </div>
+                              {/* Acordeones por tipo de menú */}
+                              <div className="space-y-3">
+                                {(() => {
+                                  const recetasAgrupadas = agruparRecetasPorTipoMenu(asignacion.recetas);
+                                  return Object.entries(recetasAgrupadas).map(([tipoMenu, recetas]) => {
+                                    if (recetas.length === 0) return null;
+                                    
+                                    const acordeonKey = `${asignacion.unidadId}-${tipoMenu}`;
+                                    const isExpanded = acordeonesExpandidos.has(acordeonKey);
+                                    
+                                    return (
+                                      <div key={tipoMenu} className="border border-gray-200 rounded-lg overflow-hidden">
+                                        {/* Header del acordeón */}
+                                        <div 
+                                          className={`${getColorTipoMenu(tipoMenu)} p-3 cursor-pointer hover:opacity-90 transition-opacity`}
+                                          onClick={() => toggleAcordeon(acordeonKey)}
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              {getIconoTipoMenu(tipoMenu)}
+                                              <span className="font-medium text-sm">
+                                                {tipoMenu} ({recetas.length} receta{recetas.length !== 1 ? 's' : ''})
+                                              </span>
+                                            </div>
+                                            <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Contenido del acordeón */}
+                                        {isExpanded && (
+                                          <div className="bg-white p-3 border-t border-gray-100">
+                                            <div className="space-y-2">
+                                              {recetas.map((receta, recetaIndex) => (
+                                                <div
+                                                  key={`${asignacion.unidadId}-${receta.id}-${recetaIndex}`}
+                                                  className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg p-2"
+                                                >
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                                                    <span className="text-xs text-gray-700">{receta.nombre_receta}</span>
+                                                    <span className="text-xs text-gray-400">({receta.codigo})</span>
+                                                  </div>
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -1627,10 +1722,16 @@ const AsignarMenusPage: React.FC = () => {
                                         className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 h-6 w-6"
                                       >
                                         <X className="w-3 h-3" />
-                                      </Button>
-                                    </div>
-                                  ))}
-                                </div>
+                                                  </Button>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  });
+                                })()}
                               </div>
                             </div>
                           ))}
