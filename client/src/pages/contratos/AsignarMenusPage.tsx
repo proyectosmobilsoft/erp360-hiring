@@ -307,6 +307,7 @@ const AsignarMenusPage: React.FC = () => {
   const [unidadesCargadas, setUnidadesCargadas] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState('');
   const [asignacionesUnidades, setAsignacionesUnidades] = useState<AsignacionUnidad[]>([]);
+  const [loadingUnidades, setLoadingUnidades] = useState(false);
 
   // Función para eliminar duplicados del array de asignaciones
   const eliminarDuplicadosAsignaciones = (asignaciones: AsignacionUnidad[]): AsignacionUnidad[] => {
@@ -554,24 +555,34 @@ const AsignarMenusPage: React.FC = () => {
     setUnidadesCargadas(new Set());
 
     if (contratoValue) {
-      // Buscar por ID del contrato
-      const contratoSeleccionado = contratosDisponibles.find(c => c.id?.toString() === contratoValue);
+      // Mostrar loading inmediatamente
+      setLoadingUnidades(true);
+      
+      try {
+        // Buscar por ID del contrato
+        const contratoSeleccionado = contratosDisponibles.find(c => c.id?.toString() === contratoValue);
 
-      console.log('📋 Contrato seleccionado:', contratoSeleccionado);
+        console.log('📋 Contrato seleccionado:', contratoSeleccionado);
 
-      if (contratoSeleccionado && contratoSeleccionado.id) {
-        console.log('🔍 Buscando unidades para contrato ID:', contratoSeleccionado.id);
-        const unidadesDelContrato = await getUnidadesPorContrato(contratoSeleccionado.id);
-        console.log('📊 Unidades encontradas:', unidadesDelContrato);
-        setUnidadesFiltradas(unidadesDelContrato);
+        if (contratoSeleccionado && contratoSeleccionado.id) {
+          console.log('🔍 Buscando unidades para contrato ID:', contratoSeleccionado.id);
+          const unidadesDelContrato = await getUnidadesPorContrato(contratoSeleccionado.id);
+          console.log('📊 Unidades encontradas:', unidadesDelContrato);
+          setUnidadesFiltradas(unidadesDelContrato);
 
-        // Cargar recetas específicas del contrato
-        await cargarRecetasAgrupadas(contratoSeleccionado.id);
-      } else {
-        console.log('❌ No se encontró el contrato o no tiene ID');
+          // Cargar recetas específicas del contrato
+          await cargarRecetasAgrupadas(contratoSeleccionado.id);
+        } else {
+          console.log('❌ No se encontró el contrato o no tiene ID');
+          setUnidadesFiltradas([]);
+          // Cargar todas las recetas si no hay contrato específico
+          await cargarRecetasAgrupadas();
+        }
+      } catch (error) {
+        console.error('❌ Error cargando unidades:', error);
         setUnidadesFiltradas([]);
-        // Cargar todas las recetas si no hay contrato específico
-        await cargarRecetasAgrupadas();
+      } finally {
+        setLoadingUnidades(false);
       }
     } else {
       setUnidadesFiltradas([]);
@@ -1315,8 +1326,8 @@ const AsignarMenusPage: React.FC = () => {
                     }))}
                     selectedValues={selectedUnidades}
                     onChange={handleUnidadesChange}
-                    placeholder={selectedContrato ? "Seleccionar unidades..." : "Primero seleccione un contrato"}
-                    disabled={!selectedContrato}
+                    placeholder={loadingUnidades ? "Cargando unidades..." : selectedContrato ? "Seleccionar unidades..." : "Primero seleccione un contrato"}
+                    disabled={!selectedContrato || loadingUnidades}
                   />
                 </div>
               </div>

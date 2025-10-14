@@ -164,13 +164,15 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
   // Función para verificar si todos los items de un grupo están seleccionados
   const areAllItemsSelected = (group: GroupData): boolean => {
     const allItems = getAllItemsFromGroup(group);
-    return allItems.length > 0 && allItems.every(item => checkItemSelected(item));
+    const enabledItems = allItems.filter(item => !isItemDisabled || !isItemDisabled(item));
+    return enabledItems.length > 0 && enabledItems.every(item => checkItemSelected(item));
   };
 
   // Función para verificar si algunos items de un grupo están seleccionados
   const areSomeItemsSelected = (group: GroupData): boolean => {
     const allItems = getAllItemsFromGroup(group);
-    return allItems.some(item => checkItemSelected(item));
+    const enabledItems = allItems.filter(item => !isItemDisabled || !isItemDisabled(item));
+    return enabledItems.some(item => checkItemSelected(item));
   };
 
   const renderCellContent = (column: any, item: GroupedTableData) => {
@@ -232,7 +234,8 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                     onChange={(e) => {
                       e.stopPropagation();
                       const allItems = getAllItemsFromGroup(group);
-                      allItems.forEach(item => {
+                      const enabledItems = allItems.filter(item => !isItemDisabled || !isItemDisabled(item));
+                      enabledItems.forEach(item => {
                         handleItemSelect(item, e.target.checked);
                       });
                     }}
@@ -276,21 +279,28 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
               group.subGroups!.map(subGroup => renderGroup(subGroup, level + 1, groupFields))
             ) : (
               // Renderizar items del grupo
-              group.items.map((item, index) => (
+              group.items.map((item, index) => {
+                const isDisabled = isItemDisabled ? isItemDisabled(item) : false;
+                return (
                 <TableRow
                   key={`${groupKey}-${item.id}`}
-                  className={`hover:bg-cyan-50/50 transition-colors duration-200 border-l-2 border-l-transparent hover:border-l-cyan-300 cursor-pointer ${isItemSelected(item) ? 'bg-cyan-50' : ''
-                    }`}
+                  className={`transition-colors duration-200 border-l-2 border-l-transparent ${
+                    isDisabled 
+                      ? 'opacity-50 cursor-not-allowed' 
+                      : 'hover:bg-cyan-50/50 hover:border-l-cyan-300 cursor-pointer'
+                  } ${isItemSelected(item) ? 'bg-cyan-50' : ''}`}
                   style={{
                     animationDelay: `${index * 100}ms`,
                     animation: 'slideInFromTop 0.3s ease-out forwards'
                   }}
                   onClick={() => {
-                    if (showCheckboxes) {
-                      handleItemSelect(item, !isItemSelected(item));
-                    }
-                    if (onItemClick) {
-                      onItemClick(item);
+                    if (!isDisabled) {
+                      if (showCheckboxes) {
+                        handleItemSelect(item, !isItemSelected(item));
+                      }
+                      if (onItemClick) {
+                        onItemClick(item);
+                      }
                     }
                   }}
                 >
@@ -311,12 +321,13 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                     </TableCell>
                   )}
                   {columns.map((column) => (
-                    <TableCell key={column.key} className="py-1 px-2 text-xs text-left">
+                    <TableCell key={column.key} className={`py-1 px-2 text-xs text-left ${isDisabled ? 'text-gray-400' : ''}`}>
                       {renderCellContent(column, item)}
                     </TableCell>
                   ))}
                 </TableRow>
-              ))
+                );
+              })
             )}
           </>
         )}
@@ -345,17 +356,19 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                 <TableHead className="font-semibold text-gray-700 text-xs py-1 px-2 w-4">
                   <input
                     type="checkbox"
-                    checked={data.length > 0 && data.every(item => checkItemSelected(item))}
+                    checked={data.length > 0 && data.filter(item => !isItemDisabled || !isItemDisabled(item)).every(item => checkItemSelected(item))}
                     ref={(input) => {
                       if (input) {
-                        const someSelected = data.some(item => checkItemSelected(item));
-                        const allSelected = data.every(item => checkItemSelected(item));
+                        const enabledItems = data.filter(item => !isItemDisabled || !isItemDisabled(item));
+                        const someSelected = enabledItems.some(item => checkItemSelected(item));
+                        const allSelected = enabledItems.every(item => checkItemSelected(item));
                         input.indeterminate = someSelected && !allSelected;
                       }
                     }}
                     onChange={(e) => {
-                      // Seleccionar/deseleccionar todos
-                      data.forEach(item => {
+                      // Seleccionar/deseleccionar solo elementos habilitados
+                      const enabledItems = data.filter(item => !isItemDisabled || !isItemDisabled(item));
+                      enabledItems.forEach(item => {
                         handleItemSelect(item, e.target.checked);
                       });
                     }}
