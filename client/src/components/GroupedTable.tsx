@@ -219,7 +219,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
       <React.Fragment key={groupKey}>
         {/* Fila del grupo */}
         <TableRow className={`${currentStyle.bg} ${currentStyle.hover} transition-all duration-200`}>
-          <TableCell colSpan={columns.length + (showCheckboxes ? 1 : 0)} className="py-1 px-2">
+          <TableCell colSpan={columns.length + (showCheckboxes ? 1 : 0)} className="py-2 px-3">
             <div className="flex items-center gap-2">
               {showCheckboxes && (
                 <div className="w-4 flex-shrink-0" style={{ marginLeft: `${level * 16}px` }}>
@@ -261,7 +261,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                         {groupIcons[group.grupo]}
                       </div>
                     )}
-                    <span className={`font-semibold ${currentStyle.text} group-hover:text-cyan-700 transition-colors duration-200 text-xs flex-1 text-left`}>
+                    <span className={`font-semibold ${currentStyle.text} group-hover:text-cyan-700 transition-colors duration-200 text-sm flex-1 text-left`}>
                       {groupDisplayNames ? groupDisplayNames(group.grupo, groupFields[level]) : group.grupo} - Total ({group.totalItems})
                     </span>
                   </div>
@@ -305,7 +305,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                   }}
                 >
                   {showCheckboxes && (
-                    <TableCell className="py-1 px-2 text-xs w-4">
+                    <TableCell className="py-2 px-3 text-sm w-4">
                       <div style={{ marginLeft: `${(level + 1) * 16}px` }}>
                         <input
                           type="checkbox"
@@ -321,7 +321,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                     </TableCell>
                   )}
                   {columns.map((column) => (
-                    <TableCell key={column.key} className={`py-1 px-2 text-xs text-left ${isDisabled ? 'text-gray-400' : ''}`}>
+                    <TableCell key={column.key} className={`py-2 px-3 text-sm text-left ${isDisabled ? 'text-gray-400' : ''}`}>
                       {renderCellContent(column, item)}
                     </TableCell>
                   ))}
@@ -353,7 +353,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
           <TableHeader className="bg-cyan-50">
             <TableRow>
               {showCheckboxes && (
-                <TableHead className="font-semibold text-gray-700 text-xs py-1 px-2 w-4">
+                <TableHead className="font-semibold text-gray-700 text-sm py-2 px-3 w-4">
                   <input
                     type="checkbox"
                     checked={data.length > 0 && data.filter(item => !isItemDisabled || !isItemDisabled(item)).every(item => checkItemSelected(item))}
@@ -377,7 +377,7 @@ const GroupedTable: React.FC<GroupedTableProps> = ({
                 </TableHead>
               )}
               {columns.map((column) => (
-                <TableHead key={column.key} className="font-semibold text-gray-700 text-xs py-1 px-2 text-left">
+                <TableHead key={column.key} className="font-semibold text-gray-700 text-sm py-2 px-3 text-left">
                   {column.label}
                 </TableHead>
               ))}
