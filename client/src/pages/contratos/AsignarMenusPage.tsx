@@ -499,57 +499,55 @@ const AsignarMenusPage: React.FC = () => {
     return gruposExpandidos;
   }, [recetasAgrupadas]);
 
-  // Función para agrupar recetas por tipo de menú
-  const agruparRecetasPorTipoMenu = (recetas: any[]) => {
-    const grupos = {
-      'DESAYUNO': [] as any[],
-      'ALMUERZO': [] as any[],
-      'CENA': [] as any[],
-      'REFRIGERIO': [] as any[],
-      'GENERAL': [] as any[]
-    };
+  // Función para agrupar recetas por nombre_servicio
+  const agruparRecetasPorNombreServicio = (recetas: any[]) => {
+    const grupos: Record<string, any[]> = {};
 
     recetas.forEach(receta => {
-      const tipoMenu = receta.tipo_menu || 'GENERAL';
-      if (grupos[tipoMenu as keyof typeof grupos]) {
-        grupos[tipoMenu as keyof typeof grupos].push(receta);
-      } else {
-        grupos.GENERAL.push(receta);
+      const nombreServicio = receta.nombre_servicio || 'Sin Servicio';
+      if (!grupos[nombreServicio]) {
+        grupos[nombreServicio] = [];
       }
+      grupos[nombreServicio].push(receta);
     });
 
     return grupos;
   };
 
-  // Función para obtener icono del tipo de menú
-  const getIconoTipoMenu = (tipoMenu: string) => {
-    switch (tipoMenu) {
-      case 'DESAYUNO':
-        return <Sun className="w-4 h-4 text-yellow-600" />;
-      case 'ALMUERZO':
-        return <UtensilsCrossed className="w-4 h-4 text-orange-600" />;
-      case 'CENA':
-        return <Moon className="w-4 h-4 text-blue-600" />;
-      case 'REFRIGERIO':
-        return <Coffee className="w-4 h-4 text-green-600" />;
-      default:
-        return <Package className="w-4 h-4 text-gray-600" />;
+  // Función para obtener icono del servicio
+  const getIconoServicio = (nombreServicio: string) => {
+    // Usar iconos basados en el tipo de servicio o contenido del nombre
+    const servicioLower = nombreServicio.toLowerCase();
+    if (servicioLower.includes('desayuno') || servicioLower.includes('breakfast')) {
+      return <Sun className="w-4 h-4 text-yellow-600" />;
+    } else if (servicioLower.includes('almuerzo') || servicioLower.includes('lunch')) {
+      return <UtensilsCrossed className="w-4 h-4 text-orange-600" />;
+    } else if (servicioLower.includes('cena') || servicioLower.includes('dinner')) {
+      return <Moon className="w-4 h-4 text-blue-600" />;
+    } else if (servicioLower.includes('refrigerio') || servicioLower.includes('snack')) {
+      return <Coffee className="w-4 h-4 text-green-600" />;
+    } else if (servicioLower.includes('menu') || servicioLower.includes('menú')) {
+      return <UtensilsCrossed className="w-4 h-4 text-purple-600" />;
+    } else {
+      return <Package className="w-4 h-4 text-gray-600" />;
     }
   };
 
-  // Función para obtener color del tipo de menú
-  const getColorTipoMenu = (tipoMenu: string) => {
-    switch (tipoMenu) {
-      case 'DESAYUNO':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-800';
-      case 'ALMUERZO':
-        return 'bg-orange-50 border-orange-200 text-orange-800';
-      case 'CENA':
-        return 'bg-blue-50 border-blue-200 text-blue-800';
-      case 'REFRIGERIO':
-        return 'bg-green-50 border-green-200 text-green-800';
-      default:
-        return 'bg-gray-50 border-gray-200 text-gray-800';
+  // Función para obtener color del servicio
+  const getColorServicio = (nombreServicio: string) => {
+    const servicioLower = nombreServicio.toLowerCase();
+    if (servicioLower.includes('desayuno') || servicioLower.includes('breakfast')) {
+      return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+    } else if (servicioLower.includes('almuerzo') || servicioLower.includes('lunch')) {
+      return 'bg-orange-50 border-orange-200 text-orange-800';
+    } else if (servicioLower.includes('cena') || servicioLower.includes('dinner')) {
+      return 'bg-blue-50 border-blue-200 text-blue-800';
+    } else if (servicioLower.includes('refrigerio') || servicioLower.includes('snack')) {
+      return 'bg-green-50 border-green-200 text-green-800';
+    } else if (servicioLower.includes('menu') || servicioLower.includes('menú')) {
+      return 'bg-purple-50 border-purple-200 text-purple-800';
+    } else {
+      return 'bg-gray-50 border-gray-200 text-gray-800';
     }
   };
 
@@ -1621,28 +1619,28 @@ const AsignarMenusPage: React.FC = () => {
                                 </Button>
                               </div>
 
-                              {/* Acordeones por tipo de menú */}
+                              {/* Acordeones por nombre de servicio */}
                               <div className="space-y-3">
                                 {(() => {
-                                  const recetasAgrupadas = agruparRecetasPorTipoMenu(asignacion.recetas);
-                                  return Object.entries(recetasAgrupadas).map(([tipoMenu, recetas]) => {
+                                  const recetasAgrupadas = agruparRecetasPorNombreServicio(asignacion.recetas);
+                                  return Object.entries(recetasAgrupadas).map(([nombreServicio, recetas]) => {
                                     if (recetas.length === 0) return null;
                                     
-                                    const acordeonKey = `${asignacion.unidadId}-${tipoMenu}`;
+                                    const acordeonKey = `${asignacion.unidadId}-${nombreServicio}`;
                                     const isExpanded = acordeonesExpandidos.has(acordeonKey);
                                     
                                     return (
-                                      <div key={tipoMenu} className="border border-gray-200 rounded-lg overflow-hidden">
+                                      <div key={nombreServicio} className="border border-gray-200 rounded-lg overflow-hidden">
                                         {/* Header del acordeón */}
                                         <div 
-                                          className={`${getColorTipoMenu(tipoMenu)} p-3 cursor-pointer hover:opacity-90 transition-opacity`}
+                                          className={`${getColorServicio(nombreServicio)} p-3 cursor-pointer hover:opacity-90 transition-opacity`}
                                           onClick={() => toggleAcordeon(acordeonKey)}
                                         >
                                           <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                              {getIconoTipoMenu(tipoMenu)}
+                                              {getIconoServicio(nombreServicio)}
                                               <span className="font-medium text-sm">
-                                                {tipoMenu} ({recetas.length} receta{recetas.length !== 1 ? 's' : ''})
+                                                {nombreServicio} ({recetas.length} receta{recetas.length !== 1 ? 's' : ''})
                                               </span>
                                             </div>
                                             <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
