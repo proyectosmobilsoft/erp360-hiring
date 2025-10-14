@@ -1425,30 +1425,57 @@ const AsignarMenusPage: React.FC = () => {
 
                   {/* Contador de recetas seleccionadas y Botón Asignar Menús */}
                   <div className="p-4 bg-gray-50 border-t border-gray-200">
-                    {/* Contador de recetas seleccionadas */}
-                    {selectedRecetas.size > 0 && (
-                      <div className="mb-3 flex items-center gap-2">
-                        <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
-                        <span className="text-sm font-medium text-gray-700">
-                          {selectedRecetas.size} receta{selectedRecetas.size !== 1 ? 's' : ''} seleccionada{selectedRecetas.size !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    )}
+                    {/* Contador de recetas seleccionadas - solo habilitadas */}
+                    {(() => {
+                      const recetasFiltradas = getRecetasFiltradas();
+                      const recetasHabilitadasSeleccionadas = recetasFiltradas.filter(receta => {
+                        const idUnico = generarIdUnico(Number(receta.id), receta.unidad_servicio);
+                        const isSelected = selectedRecetas.has(idUnico);
+                        const isDisabled = isItemDisabled(receta);
+                        return isSelected && !isDisabled;
+                      });
+                      
+                      return recetasHabilitadasSeleccionadas.length > 0 && (
+                        <div className="mb-3 flex items-center gap-2">
+                          <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-gray-700">
+                            {recetasHabilitadasSeleccionadas.length} receta{recetasHabilitadasSeleccionadas.length !== 1 ? 's' : ''} habilitada{recetasHabilitadasSeleccionadas.length !== 1 ? 's' : ''} seleccionada{recetasHabilitadasSeleccionadas.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     
-                    {/* Debug info - mostrar por qué el botón está deshabilitado */}
-                    <div className="mb-3 text-xs text-gray-500">
-                      Debug: Recetas: {selectedRecetas.size}, Unidades: {selectedUnidades.length}, Contrato: {selectedContrato ? 'Sí' : 'No'}
-                    </div>
+                    {/* Función para contar solo recetas habilitadas seleccionadas */}
+                    {(() => {
+                      const recetasFiltradas = getRecetasFiltradas();
+                      const recetasHabilitadasSeleccionadas = recetasFiltradas.filter(receta => {
+                        const idUnico = generarIdUnico(Number(receta.id), receta.unidad_servicio);
+                        const isSelected = selectedRecetas.has(idUnico);
+                        const isDisabled = isItemDisabled(receta);
+                        return isSelected && !isDisabled;
+                      });
+                      
+                      const tieneRecetasHabilitadasSeleccionadas = recetasHabilitadasSeleccionadas.length > 0;
+                      
+                      return (
+                        <>
+                          {/* Debug info - mostrar por qué el botón está deshabilitado */}
+                          <div className="mb-3 text-xs text-gray-500">
+                            Debug: Recetas totales: {selectedRecetas.size}, Recetas habilitadas seleccionadas: {recetasHabilitadasSeleccionadas.length}, Unidades: {selectedUnidades.length}, Contrato: {selectedContrato ? 'Sí' : 'No'}
+                          </div>
 
-                    <Button
-                      type="button"
-                      onClick={handleAsignarMenus}
-                      className="w-full bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={selectedRecetas.size === 0 || selectedUnidades.length === 0 || !selectedContrato}
-                    >
-                      <ArrowRight className="w-4 h-4 mr-2" />
-                      Asignar Recetas a las Unidades
-                    </Button>
+                          <Button
+                            type="button"
+                            onClick={handleAsignarMenus}
+                            className="w-full bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!tieneRecetasHabilitadasSeleccionadas || selectedUnidades.length === 0 || !selectedContrato}
+                          >
+                            <ArrowRight className="w-4 h-4 mr-2" />
+                            Asignar Recetas a las Unidades
+                          </Button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
