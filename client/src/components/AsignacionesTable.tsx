@@ -312,21 +312,51 @@ const AsignacionesTable: React.FC<AsignacionesTableProps> = ({
     };
   }, [currentPage]);
 
-  // Filtrar asignaciones
-  const asignacionesFiltradas = asignaciones.filter(asignacion => {
+  // Filtrar entidades agrupadas cuando cambien los filtros
+  const [entidadesFiltradas, setEntidadesFiltradas] = useState<EntidadAgrupada[]>([]);
+
+  useEffect(() => {
+    const filtradas = entidadesAgrupadas.filter(entidad => {
+      // Si no hay término de búsqueda, solo aplicar filtro de estado
+      if (!searchTerm.trim()) {
+        return entidad.zonas.some(zona => 
+          zona.unidades.some(unidad => 
+            unidad.asignaciones.some(asignacion => 
+              statusFilter === 'all' ||
+              (statusFilter === 'active' && asignacion.estado === 1) ||
+              (statusFilter === 'inactive' && asignacion.estado === 0)
+            )
+          )
+        );
+      }
+
+      // Buscar solo en contrato, zona y unidades (primer nivel)
+      const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
-      asignacion.nombre_receta?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asignacion.nombre_contrato?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asignacion.numero_contrato?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asignacion.nombre_unidad_servicio?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asignacion.zona_nombre?.toLowerCase().includes(searchTerm.toLowerCase());
+        entidad.nombre_entidad.toLowerCase().includes(searchLower) ||
+        entidad.zonas.some(zona => 
+          zona.nombre_zona.toLowerCase().includes(searchLower) ||
+          zona.unidades.some(unidad => 
+            unidad.nombre_unidad.toLowerCase().includes(searchLower)
+          )
+        );
 
-    const matchesStatus = statusFilter === 'all' || 
+      if (!matchesSearch) return false;
+
+      // Aplicar filtro de estado si hay coincidencias de búsqueda
+      return entidad.zonas.some(zona => 
+        zona.unidades.some(unidad => 
+          unidad.asignaciones.some(asignacion => 
+            statusFilter === 'all' ||
       (statusFilter === 'active' && asignacion.estado === 1) ||
-      (statusFilter === 'inactive' && asignacion.estado === 0);
+            (statusFilter === 'inactive' && asignacion.estado === 0)
+          )
+        )
+      );
+    });
 
-    return matchesSearch && matchesStatus;
-  });
+    setEntidadesFiltradas(filtradas);
+  }, [entidadesAgrupadas, searchTerm, statusFilter]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -417,7 +447,7 @@ const AsignacionesTable: React.FC<AsignacionesTableProps> = ({
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  placeholder="Buscar por receta, contrato, unidad o zona..."
+                  placeholder="Buscar por unidad, contrato o zona..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -444,11 +474,11 @@ const AsignacionesTable: React.FC<AsignacionesTableProps> = ({
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50">
-                <TableHead className="font-semibold text-gray-700">Entidad / Zona / Unidad / Receta</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-xs w-32">Tipo Menú</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-xs w-40">Servicio</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-xs w-32">Asignado</TableHead>
-                <TableHead className="font-semibold text-gray-700 text-center w-20">Acciones</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-left">Unidad de Servicio</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-xs w-40 text-left">Recetas Asignadas</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-xs w-40 text-left">Tipo Menú</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-xs w-44 text-left">Última Asignación</TableHead>
+                <TableHead className="font-semibold text-gray-700 text-center w-20">Estado</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -461,175 +491,159 @@ const AsignacionesTable: React.FC<AsignacionesTableProps> = ({
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : entidadesAgrupadas.length === 0 ? (
+              ) : entidadesFiltradas.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="w-12 h-12 text-gray-400" />
-                      <span className="text-gray-600">No se encontraron asignaciones</span>
+                      <span className="text-gray-600">
+                        {searchTerm.trim() ? 'No se encontraron resultados para la búsqueda' : 'No se encontraron asignaciones'}
+                      </span>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                entidadesAgrupadas.map((entidad) => {
-                  const entidadExpandida = entidadesExpandidas.has(entidad.id_contrato);
-                  
-                  return (
-                    <React.Fragment key={`entidad-${entidad.id_contrato}`}>
-                      {/* Fila de Entidad */}
-                      <TableRow 
-                        className="bg-blue-50 hover:bg-blue-100 cursor-pointer font-semibold transition-colors duration-200"
-                      >
-                        <TableCell 
-                          className="py-3 cursor-pointer"
-                          onClick={() => toggleEntidad(entidad.id_contrato)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-7 w-7 p-0 hover:bg-blue-200 hover:text-blue-800 transition-all duration-200 flex-shrink-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleEntidad(entidad.id_contrato);
-                              }}
-                            >
-                              {entidadExpandida ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                            </Button>
-                            <FileText className="w-5 h-5 text-blue-600" />
-                            <div>
-                              <div className="font-semibold text-base">{entidad.nombre_entidad}</div>
-                              <div className="text-xs text-gray-600">NIT: {entidad.nit}</div>
-                            </div>
-                            <Badge className="ml-2 bg-blue-600 hover:bg-blue-700 cursor-pointer transition-colors text-[10px] py-0 px-2 h-4">
-                              {entidad.zonas.length} {entidad.zonas.length === 1 ? 'zona' : 'zonas'}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3"></TableCell>
-                        <TableCell className="py-3"></TableCell>
-                        <TableCell className="py-3"></TableCell>
-                        <TableCell className="py-3"></TableCell>
-                      </TableRow>
-
-                      {/* Filas de Zonas */}
-                      {entidadExpandida && entidad.zonas.map((zona) => {
-                        const zonaKey = `${entidad.id_contrato}-${zona.id_zona}`;
-                        const zonaExpandida = zonasExpandidas.has(zonaKey);
-                        
-                        return (
-                          <React.Fragment key={`zona-${zonaKey}`}>
-                            <TableRow 
-                              className="bg-orange-50 hover:bg-orange-100 cursor-pointer transition-colors duration-200 animate-in slide-in-from-top-2"
-                              style={{ marginLeft: '2rem' }}
-                            >
-                              <TableCell 
-                                className="py-2.5 cursor-pointer pl-8"
-                                onClick={() => toggleZona(entidad.id_contrato, zona.id_zona)}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-6 w-6 p-0 hover:bg-orange-200 hover:text-orange-800 transition-all duration-200 flex-shrink-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleZona(entidad.id_contrato, zona.id_zona);
-                                    }}
-                                  >
-                                    {zonaExpandida ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                                  </Button>
-                                  <MapPin className="w-4 h-4 text-orange-600" />
-                                  <span className="font-medium text-sm">{zona.nombre_zona}</span>
-                                  <Badge className="ml-2 bg-orange-600 hover:bg-orange-700 cursor-pointer transition-colors text-[10px] py-0 px-2 h-4">
-                                    {zona.unidades.length} {zona.unidades.length === 1 ? 'unidad' : 'unidades'}
-                                  </Badge>
-                                </div>
-                              </TableCell>
-                              <TableCell className="py-2.5"></TableCell>
-                              <TableCell className="py-2.5"></TableCell>
-                              <TableCell className="py-2.5"></TableCell>
-                              <TableCell className="py-2.5"></TableCell>
-                            </TableRow>
-
-                            {/* Filas de Unidades */}
-                            {zonaExpandida && zona.unidades.map((unidad) => {
+                entidadesFiltradas.flatMap((entidad) =>
+                  entidad.zonas.flatMap((zona) =>
+                    zona.unidades.map((unidad) => {
                               const unidadKey = `${entidad.id_contrato}-${zona.id_zona}-${unidad.id_unidad}`;
                               const unidadExpandida = unidadesExpandidas.has(unidadKey);
                               
                               return (
                                 <React.Fragment key={`unidad-${unidadKey}`}>
-                                  <TableRow 
-                                    className="bg-purple-50 hover:bg-purple-100 cursor-pointer transition-colors duration-200 animate-in slide-in-from-top-2"
-                                    style={{ marginLeft: '4rem' }}
-                                  >
-                                    <TableCell 
-                                      className="py-2 cursor-pointer pl-12"
-                                      onClick={() => toggleUnidad(entidad.id_contrato, zona.id_zona, unidad.id_unidad)}
-                                    >
-                                      <div className="flex items-center gap-2 flex-nowrap">
+                          {/* Fila principal de la unidad de servicio */}
+                          <TableRow className="hover:bg-cyan-50/50 transition-colors duration-200">
+                            <TableCell className="py-3 text-left">
+                              <div className="flex items-center gap-2">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
                                         <Button 
                                           variant="ghost" 
-                                          size="sm" 
-                                          className="h-5 w-5 p-0 hover:bg-purple-200 hover:text-purple-800 transition-all duration-200 flex-shrink-0"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleUnidad(entidad.id_contrato, zona.id_zona, unidad.id_unidad);
-                                          }}
-                                        >
-                                          {unidadExpandida ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                        size="icon"
+                                        onClick={() => toggleUnidad(entidad.id_contrato, zona.id_zona, unidad.id_unidad)}
+                                        aria-label="Expandir/Contraer"
+                                        className={`h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-full transition-all duration-300 transform ${
+                                          unidadExpandida ? 'rotate-180' : 'rotate-0'
+                                        }`}
+                                      >
+                                        {unidadExpandida ? (
+                                          <Minus className="w-3 h-3" />
+                                        ) : (
+                                          <Plus className="w-3 h-3" />
+                                        )}
                                         </Button>
-                                        <Building className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
-                                        <span className="font-medium whitespace-nowrap" style={{ fontSize: '0.75rem' }}>{unidad.nombre_unidad}</span>
-                                        <Badge className="ml-2 bg-purple-600 hover:bg-purple-700 cursor-pointer transition-colors text-[10px] py-0 px-2 h-4 flex-shrink-0 whitespace-nowrap">
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{unidadExpandida ? 'Contraer' : 'Expandir'}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <div className="flex-1">
+                                  <div className="text-sm font-semibold text-cyan-600 mb-1">
+                                    {unidad.nombre_unidad}
+                                  </div>
+                                  <div className="text-xs text-gray-600 mt-1">
+                                    Contrato: <span className="font-medium text-blue-700">{entidad.nombre_entidad}</span> | Zona: <span className="font-medium text-orange-700">{zona.nombre_zona}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3 text-left">
+                              <div className="text-sm font-semibold text-green-600">
                                           {unidad.asignaciones.length} {unidad.asignaciones.length === 1 ? 'receta' : 'recetas'}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3 text-left">
+                              <div className="flex flex-wrap gap-1">
+                                {[...new Set(unidad.asignaciones.map(a => a.tipo_menu))].slice(0, 2).map((tipo, index) => (
+                                  <Badge key={index} variant="outline" className="text-xs px-2 py-0.5">
+                                    {tipo}
+                                  </Badge>
+                                ))}
+                                {[...new Set(unidad.asignaciones.map(a => a.tipo_menu))].length > 2 && (
+                                  <Badge variant="outline" className="text-xs px-2 py-0.5">
+                                    +{[...new Set(unidad.asignaciones.map(a => a.tipo_menu))].length - 2}
                                         </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3 text-left">
+                              <div className="text-xs text-gray-800 font-medium">
+                                {unidad.asignaciones.length > 0 ? new Date(Math.max(...unidad.asignaciones.map(a => new Date(a.created_at || 0).getTime()))).toLocaleDateString() : 'N/A'}
                                       </div>
                                     </TableCell>
-                                    <TableCell className="py-2"></TableCell>
-                                    <TableCell className="py-2"></TableCell>
-                                    <TableCell className="py-2"></TableCell>
-                                    <TableCell className="py-2"></TableCell>
+                            <TableCell className="py-3 text-center">
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                <CheckCircle className="w-3 h-3 mr-1" />Activo
+                              </Badge>
+                            </TableCell>
                                   </TableRow>
 
-                                  {/* Filas de Recetas */}
-                                  {unidadExpandida && unidad.asignaciones.map((asignacion, index) => (
-                                    <TableRow 
-                                      key={`receta-${asignacion.id}`} 
-                                      className={`transition-colors duration-150 animate-in fade-in slide-in-from-top-1 ${
-                                        index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                                      }`}
-                                      style={{ marginLeft: '6rem' }}
-                                    >
-                                      <TableCell className="py-1.5 pl-16">
+                          {/* Fila expandida con detalles de recetas */}
+                          <TableRow className={`bg-gradient-to-r from-gray-50 to-cyan-50 transition-all duration-500 ease-in-out ${
+                            unidadExpandida ? 'opacity-100' : 'opacity-0'
+                          }`}>
+                            <TableCell colSpan={5} className="p-0">
+                              <div 
+                                className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                                  unidadExpandida 
+                                    ? 'max-h-[500px] opacity-100 transform translate-y-0' 
+                                    : 'max-h-0 opacity-0 transform -translate-y-4'
+                                }`}
+                              >
+                                <div className="p-4 flex justify-center animate-in slide-in-from-top-2 duration-300">
+                                  <div className="w-full max-w-6xl">
+                                    <h5 className="text-cyan-800 font-semibold text-sm mb-3 flex items-center gap-2">
+                                      <UtensilsCrossed className="w-4 h-4" />
+                                      Recetas asignadas a {unidad.nombre_unidad}
+                                      <Badge variant="outline" className="ml-2 text-xs">
+                                        {unidad.asignaciones.length} {unidad.asignaciones.length === 1 ? 'receta' : 'recetas'}
+                                      </Badge>
+                                    </h5>
+                                    <div className="bg-white rounded-lg border border-cyan-200 overflow-hidden shadow-sm animate-in fade-in-0 duration-300 delay-100">
+                                      <table className="w-full">
+                                        <thead>
+                                          <tr className="bg-gradient-to-r from-cyan-50 to-blue-50">
+                                            <th className="px-3 py-2 text-left text-cyan-700 font-medium text-xs">Receta</th>
+                                            <th className="px-3 py-2 text-left text-cyan-700 font-medium text-xs">Tipo Menú</th>
+                                            <th className="px-3 py-2 text-left text-cyan-700 font-medium text-xs">Servicio</th>
+                                            <th className="px-3 py-2 text-left text-cyan-700 font-medium text-xs">Asignado</th>
+                                            <th className="px-3 py-2 text-left text-cyan-700 font-medium text-xs">Acciones</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {unidad.asignaciones.map((asignacion, index) => (
+                                            <tr 
+                                              key={asignacion.id} 
+                                              className={`border-b border-cyan-200 hover:bg-cyan-50/50 transition-all duration-200 animate-in slide-in-from-left-2 ${
+                                                index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+                                              }`}
+                                              style={{ animationDelay: `${index * 50}ms` }}
+                                            >
+                                              <td className="px-3 py-2 text-gray-700 text-xs">
                                         <div className="flex items-center gap-2">
                                           <UtensilsCrossed className="w-3 h-3 text-teal-600" />
-                                          <span className="font-medium text-xs text-gray-800">{asignacion.nombre_receta}</span>
+                                                  <span className="font-medium">{asignacion.nombre_receta}</span>
                                         </div>
-                                      </TableCell>
-                                      <TableCell className="py-1.5">
-                                        <span className="text-xs text-gray-800 font-medium">{asignacion.tipo_menu}</span>
-                                      </TableCell>
-                                      <TableCell className="py-1.5">
-                                        <span className="text-xs text-gray-800 font-medium">{asignacion.servicio_nombre}</span>
-                                      </TableCell>
-                                      <TableCell className="py-1.5">
-                                        <div className="flex items-center gap-1">
-                                          <Calendar className="w-3 h-3 text-gray-500" />
-                                          <span className="text-xs text-gray-800 font-medium">
+                                              </td>
+                                              <td className="px-3 py-2 text-gray-700 text-xs">
+                                                <Badge variant="outline" className="text-xs">
+                                                  {asignacion.tipo_menu}
+                                                </Badge>
+                                              </td>
+                                              <td className="px-3 py-2 text-gray-700 text-xs font-medium">{asignacion.servicio_nombre}</td>
+                                              <td className="px-3 py-2 text-gray-700 text-xs font-medium">
                                             {asignacion.created_at ? new Date(asignacion.created_at).toLocaleDateString() : 'N/A'}
-                                          </span>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell className="py-1.5">
-                                        <div className="flex items-center justify-center">
+                                              </td>
+                                              <td className="px-3 py-2 text-gray-700 text-xs">
                                           {onDelete && (
                                             <AlertDialog>
                                               <AlertDialogTrigger asChild>
                                                 <Button
                                                   variant="ghost"
                                                   size="sm"
-                                                  className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                                                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-100 transition-colors duration-200"
                                                 >
                                                   <Trash2 className="w-3 h-3" />
                                                 </Button>
@@ -653,19 +667,22 @@ const AsignacionesTable: React.FC<AsignacionesTableProps> = ({
                                               </AlertDialogContent>
                                             </AlertDialog>
                                           )}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </div>
                                         </div>
                                       </TableCell>
                                     </TableRow>
-                                  ))}
-                                </React.Fragment>
-                              );
-                            })}
-                          </React.Fragment>
-                        );
-                      })}
                     </React.Fragment>
                   );
                 })
+                  )
+                )
               )}
             </TableBody>
           </Table>
