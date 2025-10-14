@@ -470,19 +470,32 @@ const AsignarMenusPage: React.FC = () => {
     );
   }, [recetasAgrupadas, selectedRecetas]);
 
-  // Función para obtener grupos expandidos automáticamente cuando hay unidades seleccionadas
+  // Función para obtener todos los grupos expandidos (todos los niveles)
   const getDefaultExpandedGroups = useCallback((): string[] => {
-    if (selectedUnidades.length === 0 || recetasAgrupadas.length === 0) {
+    if (recetasAgrupadas.length === 0) {
       return [];
     }
 
     // Obtener las unidades de servicio únicas de las recetas disponibles
     const recetasTransformadas = transformRecetasToTableData(recetasAgrupadas);
     const unidadesUnicas = [...new Set(recetasTransformadas.map(r => r.unidad_servicio))];
+    const serviciosUnicos = [...new Set(recetasTransformadas.map(r => r.nombre_servicio_id))];
     
-    // Retornar las claves de los grupos del primer nivel para expandirlos automáticamente
-    return unidadesUnicas.map(unidad => `${unidad}-0`);
-  }, [selectedUnidades, recetasAgrupadas]);
+    // Retornar las claves de todos los grupos (primer y segundo nivel) para expandirlos automáticamente
+    const gruposExpandidos: string[] = [];
+    
+    // Primer nivel: unidades de servicio
+    unidadesUnicas.forEach(unidad => {
+      gruposExpandidos.push(`${unidad}-0`);
+    });
+    
+    // Segundo nivel: servicios dentro de cada unidad
+    serviciosUnicos.forEach(servicio => {
+      gruposExpandidos.push(`${servicio}-1`);
+    });
+    
+    return gruposExpandidos;
+  }, [recetasAgrupadas]);
 
   // Iconos para los tipos de menú
   const menuTypeIcons = {
