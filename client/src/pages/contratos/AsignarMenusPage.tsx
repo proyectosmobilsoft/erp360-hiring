@@ -470,6 +470,20 @@ const AsignarMenusPage: React.FC = () => {
     );
   }, [recetasAgrupadas, selectedRecetas]);
 
+  // Función para obtener grupos expandidos automáticamente cuando hay unidades seleccionadas
+  const getDefaultExpandedGroups = useCallback((): string[] => {
+    if (selectedUnidades.length === 0 || recetasAgrupadas.length === 0) {
+      return [];
+    }
+
+    // Obtener las unidades de servicio únicas de las recetas disponibles
+    const recetasTransformadas = transformRecetasToTableData(recetasAgrupadas);
+    const unidadesUnicas = [...new Set(recetasTransformadas.map(r => r.unidad_servicio))];
+    
+    // Retornar las claves de los grupos del primer nivel para expandirlos automáticamente
+    return unidadesUnicas.map(unidad => `${unidad}-0`);
+  }, [selectedUnidades, recetasAgrupadas]);
+
   // Iconos para los tipos de menú
   const menuTypeIcons = {
     'DESAYUNO': <Sun className="w-3 h-3 text-yellow-600" />,
@@ -1324,30 +1338,6 @@ const AsignarMenusPage: React.FC = () => {
                       />
                     </div>
 
-                    {/* Indicador de unidad de servicio seleccionada */}
-                    {selectedRecetas.size > 0 && (() => {
-                      const recetasSeleccionadas = Array.from(selectedRecetas).map(idUnico => {
-                        const idRelacion = extraerIdRelacion(idUnico);
-                        const unidadServicio = extraerUnidadServicio(idUnico);
-                        return transformRecetasToTableData(recetasAgrupadas).find(r => r.id === idRelacion && r.unidad_servicio === unidadServicio);
-                      }).filter(Boolean);
-
-                      const unidadServicioSeleccionada = recetasSeleccionadas[0]?.unidad_servicio;
-
-                      return (
-                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            <span className="text-sm font-medium text-blue-800">
-                              Unidad de servicio seleccionada: <strong>{unidadServicioSeleccionada}</strong>
-                            </span>
-                          </div>
-                          <p className="text-xs text-blue-600 mt-1">
-                            Solo se muestran recetas de esta unidad de servicio. Deselecciona todas para ver todas las opciones.
-                          </p>
-                        </div>
-                      );
-                    })()}
                   </div>
 
                   <div className="max-h-96 overflow-y-auto">
@@ -1394,7 +1384,7 @@ const AsignarMenusPage: React.FC = () => {
                           title=""
                           showTitle={false}
                           emptyMessage="No hay recetas disponibles"
-                          defaultExpandedGroups={[]}
+                          defaultExpandedGroups={getDefaultExpandedGroups()}
                           showCheckboxes={true}
                           selectedItems={selectedRecetas}
                           onItemSelect={handleRecetaSelect}
