@@ -307,7 +307,6 @@ const AsignarMenusPage: React.FC = () => {
   const [unidadesCargadas, setUnidadesCargadas] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState('');
   const [asignacionesUnidades, setAsignacionesUnidades] = useState<AsignacionUnidad[]>([]);
-  const [loadingUnidades, setLoadingUnidades] = useState(false);
 
   // Función para eliminar duplicados del array de asignaciones
   const eliminarDuplicadosAsignaciones = (asignaciones: AsignacionUnidad[]): AsignacionUnidad[] => {
@@ -555,8 +554,8 @@ const AsignarMenusPage: React.FC = () => {
     setUnidadesCargadas(new Set());
 
     if (contratoValue) {
-      // Mostrar loading inmediatamente
-      setLoadingUnidades(true);
+      // Mostrar loading global inmediatamente
+      showLoading('Cargando unidades de servicio...');
       
       try {
         // Buscar por ID del contrato
@@ -582,7 +581,7 @@ const AsignarMenusPage: React.FC = () => {
         console.error('❌ Error cargando unidades:', error);
         setUnidadesFiltradas([]);
       } finally {
-        setLoadingUnidades(false);
+        hideLoading();
       }
     } else {
       setUnidadesFiltradas([]);
@@ -1326,8 +1325,8 @@ const AsignarMenusPage: React.FC = () => {
                     }))}
                     selectedValues={selectedUnidades}
                     onChange={handleUnidadesChange}
-                    placeholder={loadingUnidades ? "Cargando unidades..." : selectedContrato ? "Seleccionar unidades..." : "Primero seleccione un contrato"}
-                    disabled={!selectedContrato || loadingUnidades}
+                    placeholder={selectedContrato ? "Seleccionar unidades..." : "Primero seleccione un contrato"}
+                    disabled={!selectedContrato}
                   />
                 </div>
               </div>
