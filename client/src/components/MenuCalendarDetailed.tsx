@@ -482,13 +482,16 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                   </th>
                   {weekDates.map((date, i) => {
                     const isTodayDate = isToday(date);
+                    const esAntesDeLaEjecucion = i < ejecucionOffset;
                     return (
                       <th key={i} className={`border border-gray-300 p-2 text-center text-sm font-semibold w-64 min-w-64 ${
                         isTodayDate 
                           ? 'bg-gray-200 text-gray-900 font-bold' 
-                          : 'text-blue-700'
+                          : esAntesDeLaEjecucion 
+                            ? 'text-gray-400 italic'
+                            : 'text-blue-700'
                       }`}>
-                        Menu {i + 1}
+                        {esAntesDeLaEjecucion ? '-' : `Menu ${i - ejecucionOffset + 1}`}
                       </th>
                     );
                   })}
@@ -672,13 +675,16 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                             </th>
                           {weekDates.map((date, i) => {
                             const isTodayDate = isToday(date);
+                            const esAntesDeLaEjecucion = i < ejecucionOffset;
                             return (
                               <th key={i} className={`border border-gray-300 p-2 text-center text-sm font-semibold w-64 min-w-64 ${
                                 isTodayDate 
                                   ? 'bg-gray-200 text-gray-900 font-bold' 
-                                  : 'text-blue-700'
+                                  : esAntesDeLaEjecucion 
+                                    ? 'text-gray-400 italic'
+                                    : 'text-blue-700'
                               }`}>
-                              Menu {i + 1}
+                              {esAntesDeLaEjecucion ? '-' : `Menu ${i - ejecucionOffset + 1}`}
                             </th>
                             );
                           })}
