@@ -199,21 +199,21 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     }
   };
 
-  // Función para formatear la fecha
+  // Función para parsear fecha sin timezone (formato YYYY-MM-DD)
+  const parseDateWithoutTimezone = (dateString: string): Date => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  // Función para formatear la fecha sin conversión de timezone
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseDateWithoutTimezone(dateString);
     return date.toLocaleDateString('es-ES', {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     });
-  };
-
-  // Función para parsear fecha sin timezone (formato YYYY-MM-DD)
-  const parseDateWithoutTimezone = (dateString: string): Date => {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return new Date(year, month - 1, day);
   };
 
   // Función para obtener las fechas de 7 días consecutivos desde la fecha de ejecución
@@ -376,7 +376,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
         <div className="text-sm text-gray-600">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Inicio: {formatDate(fechaEjecucion)}
+            Fecha de Ejecucion: {formatDate(fechaEjecucion)}
           </div>
         </div>
       </CardHeader>

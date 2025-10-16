@@ -70,9 +70,15 @@ const MenuCalendar: React.FC<MenuCalendarProps> = ({
     }
   };
 
-  // Función para formatear la fecha
+  // Función para parsear fecha sin timezone (formato YYYY-MM-DD)
+  const parseDateWithoutTimezone = (dateString: string): Date => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  // Función para formatear la fecha sin conversión de timezone
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseDateWithoutTimezone(dateString);
     return date.toLocaleDateString('es-ES', {
       weekday: 'short',
       year: 'numeric',
@@ -83,10 +89,13 @@ const MenuCalendar: React.FC<MenuCalendarProps> = ({
 
   // Función para calcular la fecha de inicio de cada unidad
   const calculateStartDate = (unitIndex: number) => {
-    const startDate = new Date(fechaEjecucion);
+    const startDate = parseDateWithoutTimezone(fechaEjecucion);
     // Cada unidad puede empezar en días diferentes
     startDate.setDate(startDate.getDate() + (unitIndex * 7)); // Cada unidad empieza una semana después
-    return startDate.toISOString().split('T')[0];
+    const year = startDate.getFullYear();
+    const month = String(startDate.getMonth() + 1).padStart(2, '0');
+    const day = String(startDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   return (
