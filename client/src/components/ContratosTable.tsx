@@ -421,30 +421,30 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                type="text"
-                placeholder="Buscar por contrato, entidad, NIT o sede..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              type="text"
+              placeholder="Buscar por contrato, entidad, NIT o sede..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
           </div>
           <div className="w-full sm:w-48">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Filtrar por estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="ABIERTO">Abierto</SelectItem>
-                <SelectItem value="EN PRODUCCION">En Producción</SelectItem>
-                <SelectItem value="FINALIZADO">Finalizado</SelectItem>
-                <SelectItem value="INACTIVO">Inactivo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <SelectValue placeholder="Filtrar por estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="ABIERTO">Abierto</SelectItem>
+              <SelectItem value="EN PRODUCCION">En Producción</SelectItem>
+              <SelectItem value="FINALIZADO">Finalizado</SelectItem>
+              <SelectItem value="INACTIVO">Inactivo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         </div>
       </div>
 
@@ -786,12 +786,12 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
             </div>
           </div>
         )}
-        </div>
+      </div>
       </CardContent>
     </Card>
 
-    {/* Modal de confirmación de eliminación */}
-    <AlertDialog open={modalEliminarAbierto} onOpenChange={setModalEliminarAbierto}>
+      {/* Modal de confirmación de eliminación */}
+      <AlertDialog open={modalEliminarAbierto} onOpenChange={setModalEliminarAbierto}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <div className="flex items-center gap-3">

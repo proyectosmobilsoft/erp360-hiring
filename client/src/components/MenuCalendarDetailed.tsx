@@ -210,44 +210,30 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     });
   };
 
-  // Función para obtener las fechas de 1 semana (7 días)
+  // Función para parsear fecha sin timezone (formato YYYY-MM-DD)
+  const parseDateWithoutTimezone = (dateString: string): Date => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  // Función para obtener las fechas de 7 días consecutivos desde la fecha de ejecución
   const getWeekDates = (startDate: string) => {
-    const start = new Date(startDate);
     const dates = [];
+    const start = parseDateWithoutTimezone(startDate);
 
-    // Ajustar al lunes de la semana actual
-    const dayOfWeek = start.getDay();
-    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const mondayStart = new Date(start);
-    mondayStart.setDate(start.getDate() + daysToMonday);
-
-    // Generar 7 días (1 semana)
+    // Generar exactamente 7 días consecutivos desde la fecha de inicio
     for (let i = 0; i < 7; i++) {
-      const date = new Date(mondayStart);
-      date.setDate(mondayStart.getDate() + i);
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
       dates.push(date);
     }
 
     return dates;
   };
 
-  // Función para obtener la semana actual
+  // Función para obtener la semana de fechas
   const getWeeksGrouped = (startDate: string) => {
-    const start = new Date(startDate);
-    const currentWeekStart = new Date(start);
-
-    // Ajustar al lunes de la semana actual
-    const dayOfWeek = start.getDay();
-    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    currentWeekStart.setDate(start.getDate() + daysToMonday);
-
-    // Generar 1 semana (7 días)
-      const weekDates = [];
-      for (let day = 0; day < 7; day++) {
-        const date = new Date(currentWeekStart);
-      date.setDate(currentWeekStart.getDate() + day);
-        weekDates.push(date);
-    }
+    const weekDates = getWeekDates(startDate);
 
     return [{
       weekNumber: 1,
@@ -278,13 +264,115 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   const weekDates = getWeekDates(fechaEjecucion);
   const weeksGrouped = getWeeksGrouped(fechaEjecucion);
 
+  // Consolidar todos los menús de todas las unidades en un solo array
+  // Agrupamos por índice de menú (día) para tener todos los menús del mismo día juntos
+  const consolidatedMenus = weekDates.map((date, dayIndex) => {
+    const menusDelDia: MenuItem[] = [];
+    
+    // Recopilar todos los menús de este índice de todas las unidades
+    unidadesMenus.forEach(unidad => {
+      if (unidad.menus && unidad.menus[dayIndex]) {
+        menusDelDia.push(unidad.menus[dayIndex]);
+      }
+    });
+    
+    return menusDelDia;
+  });
+
   return (
-    <Card className="w-full" style={{ zoom: '0.80' }} >
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CalendarIcon className="w-5 h-5 text-teal-600" />
-          Calendario de Menús Detallado - {zonaNombre}
-        </CardTitle>
+    <>
+      <style>{`
+        /* Estilos personalizados para scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 12px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: linear-gradient(to right, #f0fdfa, #ccfbf1);
+          border-radius: 10px;
+          border: 1px solid #99f6e4;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: linear-gradient(135deg, #14b8a6, #06b6d4);
+          border-radius: 10px;
+          border: 2px solid #f0fdfa;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(135deg, #0d9488, #0891b2);
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:active {
+          background: linear-gradient(135deg, #0f766e, #0e7490);
+        }
+        
+        /* Para Firefox */
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #14b8a6 #f0fdfa;
+        }
+        
+        /* Scrollbar superior */
+        .top-scroll::-webkit-scrollbar {
+          height: 14px;
+        }
+        
+        .top-scroll::-webkit-scrollbar-track {
+          background: linear-gradient(to bottom, #e0f2fe, #cffafe);
+          border-radius: 8px;
+          border: 1px solid #a5f3fc;
+          box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .top-scroll::-webkit-scrollbar-thumb {
+          background: linear-gradient(135deg, #0891b2, #14b8a6);
+          border-radius: 8px;
+          border: 2px solid #e0f2fe;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .top-scroll::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(135deg, #0e7490, #0d9488);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+        
+        .top-scroll::-webkit-scrollbar-thumb:active {
+          background: linear-gradient(135deg, #155e75, #0f766e);
+        }
+        
+        /* Scrollbar de la tabla */
+        .table-scroll-container::-webkit-scrollbar {
+          height: 10px;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-track {
+          background: linear-gradient(to right, #f0fdfa, #ccfbf1);
+          border-radius: 8px;
+          border: 1px solid #99f6e4;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-thumb {
+          background: linear-gradient(135deg, #14b8a6, #06b6d4);
+          border-radius: 8px;
+          border: 2px solid #f0fdfa;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(135deg, #0d9488, #0891b2);
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-thumb:active {
+          background: linear-gradient(135deg, #0f766e, #0e7490);
+        }
+      `}</style>
+      
+      <Card className="w-full" style={{ zoom: '0.80' }} >
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarIcon className="w-5 h-5 text-teal-600" />
+            Calendario de Menús Detallado - {zonaNombre}
+          </CardTitle>
         <div className="text-sm text-gray-600">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
@@ -302,12 +390,53 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
           </div>
         ) : unidadesMenus.length === 0 ? (
           // Mostrar calendario vacío con estructura cuando no hay unidades
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300">
+          <div>
+            <div className="flex">
+              {/* Espacio para columnas fijas */}
+              <div style={{ minWidth: '280px' }}></div>
+              
+              {/* Barra de scroll horizontal arriba - solo para columnas scrolleables */}
+              <div 
+                className="flex-1 overflow-x-auto border border-gray-300 rounded mb-1 top-scroll" 
+                style={{ height: '20px' }}
+                onScroll={(e) => {
+                  const tableContainer = e.currentTarget.parentElement?.nextElementSibling as HTMLElement;
+                  if (tableContainer && !tableContainer.dataset.scrolling) {
+                    tableContainer.dataset.scrolling = 'true';
+                    tableContainer.scrollLeft = e.currentTarget.scrollLeft;
+                    setTimeout(() => delete tableContainer.dataset.scrolling, 0);
+                  }
+                }}
+              >
+                <div style={{ width: 'calc(7 * 256px)', height: '1px' }}></div>
+              </div>
+            </div>
+            
+            {/* Contenedor de la tabla con scroll sincronizado */}
+            <div 
+              className="overflow-x-scroll overflow-y-hidden table-scroll-container" 
+              onScroll={(e) => {
+                const scrollTop = e.currentTarget.previousElementSibling?.querySelector('.top-scroll') as HTMLElement;
+                if (scrollTop && !e.currentTarget.dataset.scrolling) {
+                  e.currentTarget.dataset.scrolling = 'true';
+                  scrollTop.scrollLeft = e.currentTarget.scrollLeft;
+                  setTimeout(() => delete e.currentTarget.dataset.scrolling, 0);
+                }
+                
+                // Agregar borde a columnas sticky cuando hay scroll
+                const stickyColumns = e.currentTarget.querySelectorAll('.sticky-column-shadow');
+                if (e.currentTarget.scrollLeft > 0) {
+                  stickyColumns.forEach(col => col.classList.add('border-r-4', 'border-r-teal-500'));
+                } else {
+                  stickyColumns.forEach(col => col.classList.remove('border-r-4', 'border-r-teal-500'));
+                }
+              }}
+            >
+              <table className="w-full border-collapse border border-gray-300">
               {/* Header de semanas agrupadas */}
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-gray-800" colSpan={2}>
+                  <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-gray-800 sticky left-0 z-10 bg-gray-100 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
                     SEMANA ACTUAL
                   </th>
                   <th className="border border-gray-300 p-2 text-center text-sm font-semibold bg-teal-200 text-teal-900" colSpan={7}>
@@ -319,7 +448,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
               {/* Header de días individuales */}
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="border border-gray-300 p-3 text-left text-base font-semibold text-gray-700" colSpan={2}>
+                  <th className="border border-gray-300 p-3 text-left text-base font-semibold text-gray-700 sticky left-0 z-10 bg-gray-50 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
                     DÍAS
                   </th>
                   {weekDates.map((date, i) => {
@@ -340,7 +469,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
               {/* Header de menús individuales */}
               <thead>
                 <tr className="bg-blue-50">
-                  <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-blue-700" colSpan={2}>
+                  <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-blue-700 sticky left-0 z-10 bg-blue-50 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
                     COMPONENTE/MENU
                   </th>
                   {weekDates.map((date, i) => {
@@ -369,13 +498,13 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                     if (componentesRelacionados.length === 0) {
                       return (
                         <tr key={`clase-${claseServicio.id}`}>
-                          <td className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} rowSpan={1}>
+                          <td className={`border border-gray-300 p-3 font-semibold text-xs sticky left-0 z-10 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} rowSpan={1} style={{ minWidth: '140px' }}>
                             <div className="flex items-center gap-2">
                               {getMenuIcon(claseServicio.nombre.toUpperCase())}
                               {claseServicio.nombre.toUpperCase()}
                             </div>
                           </td>
-                          <td className="border border-gray-300 p-2 text-center text-xs text-gray-400">
+                          <td className={`border border-gray-300 p-2 text-center text-xs text-gray-400 sticky z-10 sticky-column-shadow ${getMenuTypeColor(claseServicio.nombre.toUpperCase()).split(' ')[0]}`} style={{ left: '140px', minWidth: '140px' }}>
                             Sin componentes
                           </td>
                           {weekDates.map((date, i) => {
@@ -397,8 +526,9 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                         <tr key={`clase-${claseServicio.id}-comp-${componente.id}`} className={compIndex === 0 ? `border-t-[3px] ${getMenuTypeBorderColor(claseServicio.nombre.toUpperCase())}` : ''}>
                           {compIndex === 0 && (
                             <td 
-                              className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} 
+                              className={`border border-gray-300 p-3 font-semibold text-xs sticky left-0 z-10 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} 
                               rowSpan={componentesRelacionados.length}
+                              style={{ minWidth: '140px' }}
                             >
                               <div className="flex items-center gap-2">
                                 {getMenuIcon(claseServicio.nombre.toUpperCase())}
@@ -407,7 +537,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                             </td>
                           )}
                           
-                          <td className={`border border-gray-300 p-2 text-xs font-medium w-48 min-w-48 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`}>
+                          <td className={`border border-gray-300 p-2 text-xs font-medium sticky z-10 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} style={{ left: '140px', minWidth: '140px' }}>
                             {componente.nombre}
                           </td>
                           
@@ -438,46 +568,73 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         ) : (
-          <div className="space-y-6">
-            {unidadesMenus.map((unidad, index) => (
-              <div key={unidad.unidad_id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <MapPin className="w-4 h-4 text-blue-500" />
-                  <h3 className="font-semibold text-gray-800">
-                    {unidad.unidad_nombre}
-                  </h3>
-                  <Badge variant="outline" className="ml-auto">
-                    Inicio: {formatDate(unidad.fecha_inicio)}
-                  </Badge>
-                </div>
-
-                {unidad.menus.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500">
-                    <p>No hay menús asignados a esta unidad</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-gray-300">
-                      {/* Header de semanas agrupadas */}
-                      <thead>
-                        <tr className="bg-gray-100">
-                          <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-gray-800" colSpan={2}>
-                            SEMANA ACTUAL
-                          </th>
+          <div>
+            {/* Calendario consolidado de todas las unidades */}
+            {consolidatedMenus.some(menus => menus.length > 0) ? (
+              <div>
+                    <div className="flex">
+                      {/* Espacio para columnas fijas */}
+                      <div style={{ minWidth: '280px' }}></div>
+                      
+                      {/* Barra de scroll horizontal arriba - solo para columnas scrolleables */}
+                      <div 
+                        className="flex-1 overflow-x-auto border border-gray-300 rounded mb-1 top-scroll" 
+                        style={{ height: '20px' }}
+                        onScroll={(e) => {
+                          const tableContainer = e.currentTarget.parentElement?.nextElementSibling as HTMLElement;
+                          if (tableContainer && !tableContainer.dataset.scrolling) {
+                            tableContainer.dataset.scrolling = 'true';
+                            tableContainer.scrollLeft = e.currentTarget.scrollLeft;
+                            setTimeout(() => delete tableContainer.dataset.scrolling, 0);
+                          }
+                        }}
+                      >
+                        <div style={{ width: 'calc(7 * 256px)', height: '1px' }}></div>
+                      </div>
+                    </div>
+                    
+                    {/* Contenedor de la tabla con scroll sincronizado */}
+                    <div 
+                      className="overflow-x-scroll overflow-y-hidden table-scroll-container" 
+                      onScroll={(e) => {
+                        const scrollTop = e.currentTarget.previousElementSibling?.querySelector('.top-scroll') as HTMLElement;
+                        if (scrollTop && !e.currentTarget.dataset.scrolling) {
+                          e.currentTarget.dataset.scrolling = 'true';
+                          scrollTop.scrollLeft = e.currentTarget.scrollLeft;
+                          setTimeout(() => delete e.currentTarget.dataset.scrolling, 0);
+                        }
+                        
+                        // Agregar borde a columnas sticky cuando hay scroll
+                        const stickyColumns = e.currentTarget.querySelectorAll('.sticky-column-shadow');
+                        if (e.currentTarget.scrollLeft > 0) {
+                          stickyColumns.forEach(col => col.classList.add('border-r-4', 'border-r-teal-500'));
+                        } else {
+                          stickyColumns.forEach(col => col.classList.remove('border-r-4', 'border-r-teal-500'));
+                        }
+                      }}
+                    >
+                      <table className="w-full border-collapse border border-gray-300">
+                        {/* Header de semanas agrupadas */}
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-gray-800 sticky left-0 z-10 bg-gray-100 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
+                              SEMANA ACTUAL
+                            </th>
                           <th className="border border-gray-300 p-2 text-center text-sm font-semibold bg-teal-200 text-teal-900" colSpan={7}>
                             SEMANA {weeksGrouped[0].weekNumber}
                               </th>
                         </tr>
                       </thead>
 
-                      {/* Header de días individuales */}
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="border border-gray-300 p-3 text-left text-base font-semibold text-gray-700" colSpan={2}>
-                            DÍAS
-                          </th>
+                        {/* Header de días individuales */}
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="border border-gray-300 p-3 text-left text-base font-semibold text-gray-700 sticky left-0 z-10 bg-gray-50 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
+                              DÍAS
+                            </th>
                           {weekDates.map((date, i) => {
                             const isTodayDate = isToday(date);
                             return (
@@ -493,12 +650,12 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                         </tr>
                       </thead>
 
-                      {/* Header de menús individuales */}
-                      <thead>
-                        <tr className="bg-blue-50">
-                          <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-blue-700" colSpan={2}>
-                            COMPONENTE/MENU
-                          </th>
+                        {/* Header de menús individuales */}
+                        <thead>
+                          <tr className="bg-blue-50">
+                            <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-blue-700 sticky left-0 z-10 bg-blue-50 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
+                              COMPONENTE/MENU
+                            </th>
                           {weekDates.map((date, i) => {
                             const isTodayDate = isToday(date);
                             return (
@@ -527,13 +684,13 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                             if (componentesRelacionados.length === 0) {
                               return (
                                 <tr key={`clase-${claseServicio.id}`}>
-                                  <td className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} rowSpan={1}>
+                                  <td className={`border border-gray-300 p-3 font-semibold text-xs sticky left-0 z-10 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} rowSpan={1} style={{ minWidth: '140px' }}>
                                     <div className="flex items-center gap-2">
                                       {getMenuIcon(claseServicio.nombre.toUpperCase())}
                                       {claseServicio.nombre.toUpperCase()}
                                     </div>
                                   </td>
-                                  <td className="border border-gray-300 p-2 text-center text-xs text-gray-400">
+                                  <td className={`border border-gray-300 p-2 text-center text-xs text-gray-400 sticky z-10 sticky-column-shadow ${getMenuTypeColor(claseServicio.nombre.toUpperCase()).split(' ')[0]}`} style={{ left: '140px', minWidth: '140px' }}>
                                     Sin componentes
                                   </td>
                                   {weekDates.map((date, i) => {
@@ -552,34 +709,29 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
 
                             // Mostrar cada componente en una fila
                             return componentesRelacionados.map((componente, compIndex) => {
-                              // Obtener las recetas que corresponden a esta clase de servicio
-                              const recetasDeClase = unidad.menus.filter(
-                                menu => menu.tipo.toUpperCase() === claseServicio.nombre.toUpperCase()
-                              );
+                              // Obtener las recetas que corresponden a esta clase de servicio de cada día
+                              // consolidatedMenus es un array de arrays: [[menusDelDia0], [menusDelDia1], ...]
+                              const recetasDeClase = consolidatedMenus.map(menusDelDia => 
+                                menusDelDia.find(menu => menu.tipo.toUpperCase() === claseServicio.nombre.toUpperCase())
+                              ).filter((menu): menu is MenuItem => menu !== undefined);
 
                               // Log para debug
                               if (compIndex === 0) {
-                                console.log(`🔎 Buscando recetas para ${claseServicio.nombre} en unidad ${unidad.unidad_nombre}:`, {
+                                console.log(`🔎 Buscando recetas para ${claseServicio.nombre} (consolidado):`, {
                                   claseServicio: claseServicio.nombre,
-                                  menusDisponibles: unidad.menus.map(m => ({ 
-                                    nombre: m.nombre, 
-                                    tipo: m.tipo,
-                                    ingredientes_detallados: m.ingredientes_detallados?.map(ing => ({
-                                      nombre: ing.nombre,
-                                      id_componente: ing.id_componente_menu,
-                                      componente: ing.nombre_componente_menu
+                                  diasConMenus: consolidatedMenus.map((menusDelDia, i) => ({
+                                    dia: i + 1,
+                                    totalMenus: menusDelDia.length,
+                                    menus: menusDelDia.map(m => ({ 
+                                      nombre: m.nombre, 
+                                      tipo: m.tipo 
                                     }))
                                   })),
                                   recetasEncontradas: recetasDeClase.length,
                                   recetas: recetasDeClase.map(r => ({ 
                                     nombre: r.nombre, 
                                     tipo: r.tipo, 
-                                    ingredientes_count: r.ingredientes_detallados?.length || 0,
-                                    ingredientes: r.ingredientes_detallados?.map(ing => ({
-                                      nombre: ing.nombre,
-                                      id_componente: ing.id_componente_menu,
-                                      componente: ing.nombre_componente_menu
-                                    }))
+                                    ingredientes_count: r.ingredientes_detallados?.length || 0
                                   }))
                                 });
                               }
@@ -589,8 +741,9 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                   {/* Primera subcolumna: Clase de Servicio (solo en la primera fila de componente) */}
                                   {compIndex === 0 && (
                                     <td 
-                                      className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} 
+                                      className={`border border-gray-300 p-3 font-semibold text-xs sticky left-0 z-10 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} 
                                       rowSpan={componentesRelacionados.length}
+                                      style={{ minWidth: '140px' }}
                                     >
                                       <div className="flex items-center gap-2">
                                         {getMenuIcon(claseServicio.nombre.toUpperCase())}
@@ -600,7 +753,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                   )}
                                   
                                   {/* Segunda subcolumna: Componente de menú */}
-                                  <td className={`border border-gray-300 p-2 text-xs font-medium w-48 min-w-48 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`}>
+                                  <td className={`border border-gray-300 p-2 text-xs font-medium sticky z-10 sticky-column-shadow ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} style={{ left: '140px', minWidth: '140px' }}>
                                     {componente.nombre}
                                   </td>
                                   
@@ -680,14 +833,19 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                         )}
                       </tbody>
                     </table>
+                    </div>
                   </div>
-                )}
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <UtensilsCrossed className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>No hay menús asignados para esta zona</p>
               </div>
-            ))}
+            )}
           </div>
         )}
       </CardContent>
     </Card>
+    </>
   );
 };
 
