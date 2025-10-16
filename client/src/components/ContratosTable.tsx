@@ -62,6 +62,7 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
   const [filteredContratos, setFilteredContratos] = useState<ContratoView[]>([]);
 
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Estados para filtros y paginación
   const [searchTerm, setSearchTerm] = useState('');
@@ -321,17 +322,48 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
     }).format(value);
   };
 
-  // Función para formatear fecha
+  // Función para formatear fecha sin conversión de zona horaria
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     try {
-      return new Date(dateString).toLocaleDateString('es-CO');
+      // Separar la fecha en partes para evitar problemas de zona horaria
+      const [year, month, day] = dateString.split('T')[0].split('-');
+      return `${day}/${month}/${year}`;
     } catch {
       return dateString;
     }
   };
 
-
+  // Función para actualizar datos
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setError(null);
+    try {
+      const response = await ContratosService.getContratos();
+      if (response.error) {
+        toast({
+          title: '❌ Error al Actualizar',
+          description: 'No se pudieron actualizar los contratos. Intente nuevamente.',
+          variant: 'destructive',
+          className: "bg-red-50 border-red-200 text-red-800",
+        });
+      } else {
+        const contractData = response.data || [];
+        setContratos(contractData);
+        setFilteredContratos(contractData);
+      }
+    } catch (err) {
+      console.error('Error al actualizar:', err);
+      toast({
+        title: '❌ Error al Actualizar',
+        description: 'No se pudieron actualizar los contratos. Intente nuevamente.',
+        variant: 'destructive',
+        className: "bg-red-50 border-red-200 text-red-800",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   if (error) {
     return (
@@ -354,59 +386,70 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Barra de herramientas */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white p-4 rounded-lg shadow-sm border">
-        <div className="flex flex-1 gap-4 items-center w-full sm:w-auto">
-          {/* Búsqueda */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              type="text"
-              placeholder="Buscar por contrato, entidad, NIT o sede..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+    <>
+    <Card className="bg-white shadow-lg border-0">
+      <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-200">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xl font-bold text-teal-800 flex items-center gap-2">
+            <FileText className="w-6 h-6 text-teal-600" />
+            Gestión de Contratos
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleRefresh}
+              variant="outline"
+              size="sm"
+              disabled={isRefreshing}
+              className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+            >
+              <RefreshCw className={`w-4 h-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+            <Button
+              onClick={onAdd}
+              className="bg-teal-600 hover:bg-teal-700 text-white"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Nuevo Contrato
+            </Button>
           </div>
-
-          {/* Filtro por estado */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Filtrar por estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="ABIERTO">Abierto</SelectItem>
-              <SelectItem value="EN PRODUCCION">En Producción</SelectItem>
-              <SelectItem value="FINALIZADO">Finalizado</SelectItem>
-              <SelectItem value="INACTIVO">Inactivo</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
+      </CardHeader>
 
-        <div className="flex gap-2">
-          <Button
-            onClick={cargarContratos}
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw className="w-4 h-4 mr-1" />
-            Actualizar
-          </Button>
-          <Button
-            onClick={onAdd}
-            className="bg-cyan-600 hover:bg-cyan-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Nuevo Contrato
-          </Button>
+      {/* Sección de Filtros */}
+      <div className="p-4 bg-gray-50 border-b border-gray-200">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                type="text"
+                placeholder="Buscar por contrato, entidad, NIT o sede..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+          <div className="w-full sm:w-48">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtrar por estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="ABIERTO">Abierto</SelectItem>
+                <SelectItem value="EN PRODUCCION">En Producción</SelectItem>
+                <SelectItem value="FINALIZADO">Finalizado</SelectItem>
+                <SelectItem value="INACTIVO">Inactivo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
-      {/* Tabla con estilo de usuarios */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <CardContent className="p-6">
+        <div className="rounded-md border overflow-hidden">
         <div className="relative overflow-x-auto rounded-lg shadow-sm">
           <Table className="min-w-[900px] w-full text-xs">
             <TableHeader className="bg-cyan-50">
@@ -421,7 +464,16 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {currentContratos.length === 0 ? (
+              {isRefreshing ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2 text-teal-600" />
+                      <span className="text-gray-600">Actualizando contratos...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : currentContratos.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
@@ -435,7 +487,7 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
                       {!searchTerm && statusFilter === 'all' && (
                         <Button
                           onClick={onAdd}
-                          className="bg-cyan-600 hover:bg-cyan-700 text-white mt-2"
+                          className="bg-teal-600 hover:bg-teal-700 text-white mt-2"
                         >
                           <Plus className="w-4 h-4 mr-1" />
                           Crear primer contrato
@@ -734,10 +786,12 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </CardContent>
+    </Card>
 
-      {/* Modal de confirmación de eliminación */}
-      <AlertDialog open={modalEliminarAbierto} onOpenChange={setModalEliminarAbierto}>
+    {/* Modal de confirmación de eliminación */}
+    <AlertDialog open={modalEliminarAbierto} onOpenChange={setModalEliminarAbierto}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <div className="flex items-center gap-3">
@@ -849,8 +903,7 @@ const ContratosTable: React.FC<ContratosTableProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-    </div>
+    </>
   );
 };
 

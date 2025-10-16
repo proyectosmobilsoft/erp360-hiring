@@ -826,44 +826,42 @@ const MinutasContratoPage: React.FC = () => {
           </div>
 
           {/* Sección de Calendario de Menús - Con más espaciado */}
-          {zonaActiva ? (
-            <div className="mt-8 mb-6">
-              {cargandoUnidades ? (
-                <div className="bg-white border border-gray-300 rounded-lg p-8 text-center">
-                  <div className="text-gray-500">
-                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                      <UtensilsCrossed className="w-8 h-8 text-gray-400 animate-pulse" />
-                    </div>
-                    <h4 className="text-lg font-semibold text-gray-700 mb-2">
-                      Cargando menús...
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      Obteniendo unidades de servicio y menús asignados
-                    </p>
+          <div className="mt-8 mb-6">
+            {cargandoUnidades ? (
+              <div className="bg-white border border-gray-300 rounded-lg p-8 text-center">
+                <div className="text-gray-500">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                    <UtensilsCrossed className="w-8 h-8 text-gray-400 animate-pulse" />
                   </div>
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">
+                    Cargando menús...
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Obteniendo unidades de servicio y menús asignados
+                  </p>
                 </div>
-              ) : (
-                <MenuCalendarDetailed
-                  zonaId={zonaActiva}
-                  zonaNombre={zonasDisponibles.find(z => z.id === zonaActiva)?.nombre || 'Zona'}
-                  fechaEjecucion={contratoSeleccionado?.['Ejecucion:DT:colspan:[Fechas del Contrato]'] || new Date().toISOString().split('T')[0]}
-                  unidadesMenus={unidadesConMenus.map(unidad => ({
-                    unidad_id: unidad.unidad_id,
-                    unidad_nombre: unidad.unidad_nombre,
-                    fecha_inicio: unidad.menus[0]?.fecha_asignacion || new Date().toISOString().split('T')[0],
-                    menus: unidad.menus.map(menu => ({
-                      id: menu.id_producto,
-                      nombre: menu.nombre_receta,
-                      tipo: menu.nombre_servicio as 'DESAYUNO' | 'ALMUERZO' | 'CENA' | 'REFRIGERIO',
-                      codigo: menu.codigo,
-                      ingredientes: menu.ingredientes || [],
-                      ingredientes_detallados: menu.ingredientes_detallados || []
-                    }))
-                  }))}
-                />
-              )}
-            </div>
-          ) : null}
+              </div>
+            ) : (
+              <MenuCalendarDetailed
+                zonaId={zonaActiva || ''}
+                zonaNombre={zonaActiva ? (zonasDisponibles.find(z => z.id === zonaActiva)?.nombre || 'Zona') : 'Seleccione un contrato y zona'}
+                fechaEjecucion={contratoSeleccionado?.['Ejecucion:DT:colspan:[Fechas del Contrato]'] || new Date().toISOString().split('T')[0]}
+                unidadesMenus={zonaActiva ? unidadesConMenus.map(unidad => ({
+                  unidad_id: unidad.unidad_id,
+                  unidad_nombre: unidad.unidad_nombre,
+                  fecha_inicio: unidad.menus[0]?.fecha_asignacion || new Date().toISOString().split('T')[0],
+                  menus: unidad.menus.map(menu => ({
+                    id: menu.id_producto,
+                    nombre: menu.nombre_receta,
+                    tipo: menu.nombre_servicio as 'DESAYUNO' | 'ALMUERZO' | 'CENA' | 'REFRIGERIO',
+                    codigo: menu.codigo,
+                    ingredientes: menu.ingredientes || [],
+                    ingredientes_detallados: menu.ingredientes_detallados || []
+                  }))
+                })) : []}
+              />
+            )}
+          </div>
 
           {/* Botón Guardar */}
           <div className="flex justify-end mt-6">

@@ -51,21 +51,41 @@ import TercerosModal from '../../components/TercerosModal';
 import { Tercero } from '../../services/tercerosService';
 
 const createValidationSchema = (isEditing: boolean) => Yup.object({
-  nit: isEditing ? Yup.string() : Yup.string().required("NIT es requerido"),
-  nombreCliente: isEditing ? Yup.string() : Yup.string().required("Nombre del cliente es requerido"),
+  nit: isEditing ? Yup.string() : Yup.string().required("Campo requerido"),
+  nombreCliente: isEditing ? Yup.string() : Yup.string().required("Campo requerido"),
   observacion: Yup.string(),
-  codigo: Yup.string().required("Código es requerido"),
-  objetoContrato: Yup.string().required("Objeto del contrato es requerido"),
-  noContrato: Yup.string().required("Número de contrato es requerido"),
-  fechaInicial: Yup.string().required("Fecha inicial es requerida"),
-  fechaFinal: Yup.string().required("Fecha final es requerida"),
-  fechaEjecucion: Yup.string().required("Fecha de ejecución es requerida"),
-  valorContrato: Yup.string().required("Valor del contrato es requerido"),
-  noPpl: Yup.string().required("Número PPL es requerido"),
-  noCiclos: Yup.string().required("Número de ciclos es requerido"),
-  noServicios: Yup.string().required("Número de servicios es requerido"),
-  estadoProceso: Yup.string().required("Estado del proceso es requerido"),
-  sedeAdministrativa: Yup.string().required("Sede administrativa es requerida"),
+  objetoContrato: Yup.string().required("Campo requerido"),
+  noContrato: Yup.string().required("Campo requerido"),
+  fechaInicial: Yup.string().required("Campo requerido"),
+  fechaFinal: Yup.string()
+    .required("Campo requerido")
+    .test('fecha-mayor', 'La fecha final debe ser mayor a la fecha inicial', function(value) {
+      const { fechaInicial } = this.parent;
+      if (!value || !fechaInicial) return true;
+      return new Date(value) > new Date(fechaInicial);
+    }),
+  fechaEjecucion: Yup.string()
+    .required("Campo requerido")
+    .test('fecha-ejecucion', 'La fecha de ejecución debe ser mayor o igual a la fecha inicial', function(value) {
+      const { fechaInicial } = this.parent;
+      if (!value || !fechaInicial) return true;
+      return new Date(value) >= new Date(fechaInicial);
+    }),
+  valorContrato: Yup.string().required("Campo requerido"),
+  noPpl: Yup.number()
+    .typeError("Campo requerido")
+    .min(0, "No puede ser negativo")
+    .integer("Debe ser un número entero"),
+  noCiclos: Yup.number()
+    .typeError("Campo requerido")
+    .min(0, "No puede ser negativo")
+    .integer("Debe ser un número entero"),
+  noServicios: Yup.number()
+    .typeError("Campo requerido")
+    .min(0, "No puede ser negativo")
+    .integer("Debe ser un número entero"),
+  estadoProceso: Yup.string().required("Campo requerido"),
+  sedeAdministrativa: Yup.string().required("Campo requerido"),
   zona: Yup.string(), // No obligatorio
   noPplZona: Yup.string(), // No obligatorio
   clausulas: Yup.string(), // No obligatorio
@@ -82,16 +102,15 @@ interface ContratoFormData {
   nit: string;
   nombreCliente: string;
   observacion: string;
-  codigo: string;
   objetoContrato: string;
   noContrato: string;
   fechaInicial: string;
   fechaFinal: string;
   fechaEjecucion: string;
   valorContrato: string;
-  noPpl: string;
-  noCiclos: string;
-  noServicios: string;
+  noPpl: number | string;
+  noCiclos: number | string;
+  noServicios: number | string;
   estadoProceso: string;
   sedeAdministrativa: string;
   zona: string;
@@ -630,17 +649,16 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
     nit: contratoEnEdicion?.nit || '', // NIT desde la base de datos
     nombreCliente: contratoEnEdicion?.nombre_cliente || '', // Nombre desde la base de datos
     observacion: contratoEnEdicion?.observacion || '',
-    codigo: contratoEnEdicion?.codigo || '002',
     objetoContrato: contratoEnEdicion?.objetivo || '',
     noContrato: contratoEnEdicion?.no_contrato || '', // Número desde la base de datos
     fechaInicial: contratoEnEdicion?.fecha_inicial || '', // Fecha desde la base de datos
     fechaFinal: contratoEnEdicion?.fecha_final || '', // Fecha desde la base de datos
     fechaEjecucion: contratoEnEdicion?.fecha_arranque || '', // Fecha desde la base de datos
     valorContrato: contratoEnEdicion?.valor_contrato?.toString() || '0', // Valor desde la base de datos
-    noPpl: contratoEnEdicion?.no_ppl?.toString() || '', // PPL desde la base de datos
-    noCiclos: contratoEnEdicion?.no_ciclos?.toString() || '',
-    noServicios: contratoEnEdicion?.no_servicios?.toString() || '', // Servicios desde la base de datos
-    estadoProceso: contratoEnEdicion?.estado_proceso || '', // Estado desde la base de datos
+    noPpl: contratoEnEdicion?.no_ppl || 0, // PPL desde la base de datos
+    noCiclos: contratoEnEdicion?.no_ciclos || 0,
+    noServicios: contratoEnEdicion?.no_servicios || 0, // Servicios desde la base de datos
+    estadoProceso: contratoEnEdicion?.estado_proceso || 'ABIERTO', // Estado desde la base de datos, por defecto ABIERTO
     sedeAdministrativa: contratoEnEdicion?.sede_administrativa || '', // Sucursal desde la base de datos
     zona: '',
     noPplZona: contratoEnEdicion?.no_ppl?.toString() || '',
@@ -684,7 +702,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
           id_usuario: contratoEnEdicion?.id_usuario || 1, // Mantener el usuario original
           id_sucursal: sucursalSeleccionada?.id || contratoEnEdicion?.id_sucursal || 1,
           no_contrato: values.noContrato,
-          codigo: values.codigo,
+          codigo: contratoEnEdicion?.codigo || `COD-${Date.now().toString().slice(-6)}`,
           fecha_final: values.fechaFinal,
           fecha_inicial: values.fechaInicial,
           fecha_arranque: values.fechaEjecucion,
@@ -695,9 +713,9 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
           valor_contrato: parseFloat(values.valorContrato) || 0,
           valor_facturado: 0,
           estado: contratoEnEdicion?.estado || 1,
-          no_ppl: parseInt(values.noPpl) || 0,
-          no_ciclos: parseInt(values.noCiclos) || 0,
-          no_servicios: parseInt(values.noServicios) || 0,
+          no_ppl: parseInt(String(values.noPpl)) || 0,
+          no_ciclos: parseInt(String(values.noCiclos)) || 0,
+          no_servicios: parseInt(String(values.noServicios)) || 0,
           estado_proceso: values.estadoProceso,
           clausulas: values.clausulas
         };
@@ -759,7 +777,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
           id_usuario: 1, // Usuario por defecto
           id_sucursal: sucursalSeleccionada?.id || 1, // Default a sucursal principal
           no_contrato: values.noContrato,
-          codigo: values.codigo,
+          codigo: `COD-${Date.now().toString().slice(-6)}`,
           fecha_final: values.fechaFinal,
           fecha_inicial: values.fechaInicial,
           fecha_arranque: values.fechaEjecucion,
@@ -770,9 +788,9 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
           valor_contrato: parseFloat(values.valorContrato) || 0,
           valor_facturado: 0,
           estado: 1,
-          no_ppl: parseInt(values.noPpl) || 0,
-          no_ciclos: parseInt(values.noCiclos) || 0,
-          no_servicios: parseInt(values.noServicios) || 0,
+          no_ppl: parseInt(String(values.noPpl)) || 0,
+          no_ciclos: parseInt(String(values.noCiclos)) || 0,
+          no_servicios: parseInt(String(values.noServicios)) || 0,
           estado_proceso: values.estadoProceso,
           clausulas: values.clausulas
         };
@@ -920,19 +938,13 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-
-
-      <div className="max-w-7xl mx-auto p-4">
-        {/* Header */}
-
-
-        <Formik
-          initialValues={initialValues}
-          validationSchema={createValidationSchema(!!contratoEnEdicion)}
-          onSubmit={handleSubmit}
-        >
-          {({ values, errors, touched, handleChange, handleBlur, setFieldValue, handleSubmit: formikSubmit, setFieldError, setFieldTouched }) => {
+    <>
+      <Formik
+        initialValues={initialValues}
+        validationSchema={createValidationSchema(!!contratoEnEdicion)}
+        onSubmit={handleSubmit}
+      >
+        {({ values, errors, touched, handleChange, handleBlur, setFieldValue, handleSubmit: formikSubmit, setFieldError, setFieldTouched }) => {
             // Effect para actualizar campos cuando se selecciona un tercero
             React.useEffect(() => {
               if (terceroSeleccionado && !contratoEnEdicion) {
@@ -956,120 +968,128 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
 
             return (
               <>
-                {/* Header con botones */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-white" />
+                <Card className="bg-white shadow-lg border-0">
+                  <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-200">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xl font-bold text-teal-800 flex items-center gap-2">
+                        <FileText className="w-6 h-6 text-teal-600" />
+                        {contratoEnEdicion ? 'Editar Contrato' : 'Registro de Contrato'}
+                        {contratoEnEdicion && (
+                          <Badge className="ml-2 bg-blue-100 text-blue-800 hover:bg-blue-100">
+                            {contratoEnEdicion.no_contrato}
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCancelar}
+                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isSubmitting}
+                          className="bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white"
+                          onClick={async () => {
+                            console.log('🔍 Botón clickeado, valores actuales:', values); // Debug
+                            console.log('🔍 Errores de validación previos:', errors); // Debug
+                            console.log('🔍 Modo edición:', !!contratoEnEdicion);
+                            console.log('🔍 Contrato en edición completo:', contratoEnEdicion);
+
+                            // Validar manualmente primero
+                            try {
+                              await createValidationSchema(!!contratoEnEdicion).validate(values, { abortEarly: false });
+
+                              // Validación adicional para nuevo contrato
+                              if (!contratoEnEdicion && !terceroIdSeleccionado) {
+                                toast({
+                                  title: "Error de validación",
+                                  description: "Debe seleccionar un tercero para el contrato",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+
+                              // Validar que se haya seleccionado una sucursal válida
+                              const sucursalSeleccionada = sucursales.find(s => s.nombre === values.sedeAdministrativa);
+                              if (!sucursalSeleccionada) {
+                                toast({
+                                  title: "Error de validación",
+                                  description: "Debe seleccionar una sede administrativa válida",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+
+                            console.log('Validación exitosa, ejecutando handleSubmit'); // Debug
+                            console.log('ID tercero seleccionado:', terceroIdSeleccionado); // Debug
+                            handleSubmit(values);
+                          } catch (validationError: any) {
+                            console.error('❌ Error de validación:', validationError); // Debug
+                            console.error('❌ Errores detallados:', validationError.errors); // Debug
+                            console.error('❌ Inner errors:', validationError.inner); // Debug
+                            
+                            // Mostrar qué campos específicos tienen error
+                            const camposConError = validationError.inner?.map((err: any) => {
+                              console.error(`  ❌ Campo con error: ${err.path} - ${err.message}`);
+                              return `${err.path}: ${err.message}`;
+                            }).join(' | ') || validationError.errors?.join(', ') || 'campos requeridos';
+                            
+                            console.error('❌ Resumen de errores:', camposConError);
+                            
+                            toast({
+                              title: "Error de validación",
+                              description: camposConError,
+                              variant: "destructive",
+                            });
+                          }
+                          }}
+                        >
+                          <Save className="w-4 h-4 mr-1" />
+                          {contratoEnEdicion ? 'Actualizar' : 'Guardar'}
+                        </Button>
+                      </div>
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-                      <span>{contratoEnEdicion ? 'Editar Contrato' : 'Registro de Contrato'}</span>
-                      {contratoEnEdicion && (
-                        <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                          {contratoEnEdicion.no_contrato}
-                        </span>
-                      )}
-                    </h1>
+                  </CardHeader>
 
-                  </div>
-
-                  {/* Botones en el header */}
-                  <div className="flex justify-end space-x-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleCancelar}
-                      className="px-4 py-2"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={async () => {
-                        console.log('Botón clickeado, valores actuales:', values); // Debug
-                        console.log('Errores de validación:', errors); // Debug
-
-                        // Validar manualmente primero
-                        try {
-                          await createValidationSchema(!!contratoEnEdicion).validate(values, { abortEarly: false });
-
-                          // Validación adicional para nuevo contrato
-                          if (!contratoEnEdicion && !terceroIdSeleccionado) {
-                            toast({
-                              title: "Error de validación",
-                              description: "Debe seleccionar un tercero para el contrato",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-
-                          // Validar que se haya seleccionado una sucursal válida
-                          const sucursalSeleccionada = sucursales.find(s => s.nombre === values.sedeAdministrativa);
-                          if (!sucursalSeleccionada) {
-                            toast({
-                              title: "Error de validación",
-                              description: "Debe seleccionar una sede administrativa válida",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-
-                          console.log('Validación exitosa, ejecutando handleSubmit'); // Debug
-                          console.log('ID tercero seleccionado:', terceroIdSeleccionado); // Debug
-                          handleSubmit(values);
-                        } catch (validationError) {
-                          console.error('Error de validación:', validationError); // Debug
-                          toast({
-                            title: "Error de validación",
-                            description: "Por favor completa todos los campos requeridos",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                      disabled={isSubmitting}
-                      className="bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-400 text-white border-0 shadow-sm px-6 py-2 rounded text-sm font-medium transition-colors"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      {contratoEnEdicion ? 'Actualizar' : 'Guardar'}
-                    </Button>
-                  </div>
-                </div>
-
-                <Form id="contrato-form">
-                  {/* Contenedor principal */}
-                  <div className="bg-white rounded-lg shadow-lg border border-gray-200">
-                    {/* Tabs actualizados */}
-                    <div className="border-b border-gray-200 bg-white">
-                      <div className="flex items-center justify-center p-4">
-                        <div className="w-4/5">
-                          <div className="grid w-full grid-cols-2 bg-cyan-100/60 p-1 rounded-lg">
-                            <button
-                              type="button"
-                              onClick={() => setActiveTab('general')}
-                              className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-300 ${activeTab === 'general'
-                                ? 'bg-cyan-600 text-white shadow-md'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            >
-                              Información General
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setActiveTab('clausulas')}
-                              className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-300 ${activeTab === 'clausulas'
-                                ? 'bg-cyan-600 text-white shadow-md'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            >
-                              Cláusulas
-                            </button>
-                          </div>
+                  {/* Sección de Tabs */}
+                  <div className="p-4 bg-gray-50 border-b border-gray-200">
+                    <div className="flex items-center justify-start">
+                      <div className="w-full max-w-md">
+                        <div className="grid w-full grid-cols-2 bg-teal-100/60 p-1 rounded-lg">
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('general')}
+                            className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-300 ${activeTab === 'general'
+                              ? 'bg-teal-600 text-white shadow-md'
+                              : 'text-gray-600 hover:text-gray-900'
+                              }`}
+                          >
+                            Información General
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('clausulas')}
+                            className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-300 ${activeTab === 'clausulas'
+                              ? 'bg-teal-600 text-white shadow-md'
+                              : 'text-gray-600 hover:text-gray-900'
+                              }`}
+                          >
+                            Cláusulas
+                          </button>
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Contenido del formulario */}
-                    <div className="p-4">
+                  <CardContent className="p-6">
+                    <Form id="contrato-form">
                       {activeTab === 'general' && (
                         <div className="space-y-3">
                           {/* Sección principal con dos columnas */}
@@ -1081,57 +1101,31 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                 Información del cliente
                               </h3>
 
-                              {/* Primera fila - NIT y Nombre */}
-                              <div className="grid grid-cols-3 gap-3 mb-3">
-                                <div className="col-span-1">
-                                  <label className="block text-sm text-gray-700 mb-1">NIT</label>
-                                  <input
-                                    type="text"
-                                    name="nit"
-                                    value={values.nit}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    onClick={() => {
-                                      if (!contratoEnEdicion) {
-                                        setShowTercerosModal(true);
-                                      }
-                                    }}
-                                    readOnly={!!contratoEnEdicion}
-                                    className={`w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${contratoEnEdicion
-                                      ? 'bg-gray-100 cursor-not-allowed'
-                                      : 'bg-yellow-50 cursor-pointer hover:bg-yellow-100'
-                                      }`}
-                                    placeholder={contratoEnEdicion ? '' : 'Haga clic para seleccionar tercero'}
-                                  />
-                                  {errors.nit && touched.nit && (
-                                    <p className="text-red-600 text-xs mt-1">{errors.nit}</p>
-                                  )}
-                                </div>
-
-                                <div className="col-span-2">
-                                  <label className="block text-sm text-gray-700 mb-1">Nombre del Cliente o Entidad Contratante</label>
-                                  <input
-                                    type="text"
-                                    name="nombreCliente"
-                                    value={values.nombreCliente}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    onClick={() => {
-                                      if (!contratoEnEdicion) {
-                                        setShowTercerosModal(true);
-                                      }
-                                    }}
-                                    readOnly={!!contratoEnEdicion}
-                                    className={`w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${contratoEnEdicion
-                                      ? 'bg-gray-100 cursor-not-allowed'
-                                      : 'bg-yellow-50 cursor-pointer hover:bg-yellow-100'
-                                      }`}
-                                    placeholder={contratoEnEdicion ? '' : 'Haga clic para seleccionar tercero'}
-                                  />
-                                  {errors.nombreCliente && touched.nombreCliente && (
-                                    <p className="text-red-600 text-xs mt-1">{errors.nombreCliente}</p>
-                                  )}
-                                </div>
+                              {/* Primera fila - Cliente (NIT - Nombre) */}
+                              <div className="mb-3">
+                                <label className="block text-sm text-gray-700 mb-1">
+                                  Cliente (NIT - Nombre) <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  name="nombreCliente"
+                                  value={values.nit ? `${values.nit} - ${values.nombreCliente}` : values.nombreCliente}
+                                  onClick={() => {
+                                    if (!contratoEnEdicion) {
+                                      setShowTercerosModal(true);
+                                    }
+                                  }}
+                                  readOnly
+                                  autoComplete="off"
+                                  className={`w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${contratoEnEdicion
+                                    ? 'bg-gray-100 cursor-not-allowed'
+                                    : 'bg-yellow-50 cursor-pointer hover:bg-yellow-100'
+                                    }`}
+                                  placeholder={contratoEnEdicion ? '' : 'Haga clic para seleccionar tercero'}
+                                />
+                                {(errors.nit && touched.nit) || (errors.nombreCliente && touched.nombreCliente) ? (
+                                  <p className="text-red-600 text-xs mt-1">{errors.nit || errors.nombreCliente}</p>
+                                ) : null}
                               </div>
 
                               {/* Segunda fila - Solo Observación */}
@@ -1144,6 +1138,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                   value={values.observacion}
                                   onChange={handleChange}
                                   onBlur={handleBlur}
+                                  autoComplete="off"
                                   rows={2}
                                   className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none text-sm"
                                 />
@@ -1158,8 +1153,8 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                   <MapPin className="w-5 h-5 text-teal-600" />
                                   Asociación de Zonas
                                 </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                                  <div className="col-span-2">
+                                <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+                                  <div className="col-span-3">
                                     <SelectWithSearch
                                       options={zonasDisponibles.map(z => ({ id: z.id.toString(), nombre: z.nombre }))}
                                       value={selectedZona}
@@ -1168,7 +1163,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
 
                                     />
                                   </div>
-                                  <div>
+                                  <div className="col-span-2">
                                     <label className="block text-sm text-gray-700 mb-1">No PPL</label>
                                     <input
                                       type="text"
@@ -1177,9 +1172,10 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                       className="w-full px-2 py-1.5 border border-gray-300 rounded bg-gray-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                                       disabled
                                       readOnly
+                                      autoComplete="off"
                                     />
                                   </div>
-                                  <div>
+                                  <div className="col-span-1">
                                     <button
                                       type="button"
                                       onClick={handleAddZona}
@@ -1189,7 +1185,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                         }`}
                                     >
-                                      <Plus className="w-3 h-3" />
+                                      <Plus className="w-4 h-4" />
                                     </button>
                                   </div>
                                 </div>
@@ -1197,25 +1193,29 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                 {/* Tabla de zonas */}
                                 <div className="mt-3">
                                   <div className="bg-teal-50 border border-gray-200 rounded-t">
-                                    <div className="grid grid-cols-4 gap-4 p-2 font-medium text-xs text-gray-900">
-                                      <div>Codigo</div>
-                                      <div>Nombre Zona</div>
-                                      <div>No PPL</div>
-                                      <div>Acciones</div>
+                                    <div className="flex justify-between items-center p-3 font-medium text-sm text-teal-800">
+                                      <div className="flex-1">Zonas Asociadas</div>
+                                      <div className="w-20 text-center">Acciones</div>
                                     </div>
                                   </div>
-                                  <div className="border border-t-0 border-gray-200 rounded-b">
+                                  <div className="border border-t-0 border-gray-200 rounded-b bg-white">
                                     {zonasAgregadas.length > 0 ? (
-                                      zonasAgregadas.map((zona) => (
-                                        <div key={zona.id} className="grid grid-cols-4 gap-4 p-2 border-b border-gray-100 last:border-b-0 items-center">
-                                          <div className="text-xs text-gray-700">{zona.codigo}</div>
-                                          <div className="text-xs text-gray-700">{zona.nombre}</div>
-                                          <div className="text-xs text-gray-700">{zona.noPpl}</div>
-                                          <div className="flex justify-center">
+                                      zonasAgregadas.map((zona, index) => (
+                                        <div key={zona.id} className="flex justify-between items-center p-3 border-b border-gray-100 last:border-b-0 hover:bg-teal-50/30 transition-colors">
+                                          <div className="flex-1 flex items-center gap-3">
+                                            <Badge variant="outline" className="bg-teal-600 text-white border-teal-600 font-semibold px-3 py-1">
+                                              {zona.codigo}
+                                            </Badge>
+                                            <div className="flex flex-col">
+                                              <span className="text-sm font-semibold text-gray-900">{zona.nombre}</span>
+                                              <span className="text-xs text-gray-500">PPL: {zona.noPpl}</span>
+                                            </div>
+                                          </div>
+                                          <div className="w-20 flex justify-center">
                                             <button
                                               type="button"
                                               onClick={() => setZonasAgregadas(prev => prev.filter(z => z.id !== zona.id))}
-                                              className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition-colors"
+                                              className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-full transition-colors"
                                               title="Quitar zona"
                                             >
                                               <Trash2 className="w-4 h-4" />
@@ -1224,8 +1224,10 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                         </div>
                                       ))
                                     ) : (
-                                      <div className="p-4 text-center">
-                                        <p className="text-gray-500 text-xs">No Rows To Show</p>
+                                      <div className="p-8 text-center">
+                                        <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                                        <p className="text-gray-500 text-sm">No hay zonas asociadas</p>
+                                        <p className="text-gray-400 text-xs mt-1">Seleccione una zona y haga clic en el botón + para agregar</p>
                                       </div>
                                     )}
                                   </div>
@@ -1238,12 +1240,36 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                               <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                                 <FileText className="w-5 h-5 text-teal-600" />
                                 Información del contrato
+                                {(contratoEnEdicion || values.noContrato) && (
+                                  <Badge className="bg-red-100 text-red-700 hover:bg-red-100 font-bold">
+                                    # {contratoEnEdicion?.codigo || `COD-${values.noContrato}`}
+                                  </Badge>
+                                )}
                               </h3>
 
-                              {/* Primera fila - Código, Objeto y No Contrato */}
-                              <div className="grid grid-cols-2 gap-3 mb-3">
+                              {/* Primera fila - Objeto del Contrato */}
+                              <div className="mb-3">
+                                <label className="block text-sm text-gray-700 mb-1">
+                                  Objeto del Contrato <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  name="objetoContrato"
+                                  value={values.objetoContrato}
+                                  onChange={handleChange}
+                                  onBlur={handleBlur}
+                                  autoComplete="off"
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                />
+                                {errors.objetoContrato && touched.objetoContrato && (
+                                  <p className="text-red-600 text-xs mt-1">{errors.objetoContrato}</p>
+                                )}
+                              </div>
+
+                              {/* Campos en 4 columnas */}
+                              <div className="grid grid-cols-4 gap-4 mb-3">
                                 <div>
-                                  <label className="block text-xs text-gray-700 mb-1">
+                                  <label className="block text-sm text-gray-700 mb-1">
                                     N° Contrato <span className="text-red-500">*</span>
                                   </label>
                                   <input
@@ -1252,6 +1278,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                     value={values.noContrato}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
+                                    autoComplete="off"
                                     className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                                   />
                                   {errors.noContrato && touched.noContrato && (
@@ -1259,100 +1286,97 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                   )}
                                 </div>
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">Objeto del Contrato</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    No PPL <span className="text-red-500">*</span>
+                                  </label>
                                   <input
-                                    type="text"
-                                    name="objetoContrato"
-                                    value={values.objetoContrato}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                  />
-                                  {errors.objetoContrato && touched.objetoContrato && (
-                                    <p className="text-red-600 text-xs mt-1">{errors.objetoContrato}</p>
-                                  )}
-                                </div>
-
-
-                              </div>
-
-                              {/* Campos en 3 columnas */}
-                              <div className="grid grid-cols-4 gap-4 mb-3">
-                                <div>
-                                  <label className="block text-sm text-gray-700 mb-1">Codigo</label>
-                                  <input
-                                    type="text"
-                                    name="codigo"
-                                    value={values.codigo}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm font-bold text-red-600"
-                                    disabled
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm text-gray-700 mb-1">No PPL</label>
-                                  <input
-                                    type="text"
+                                    type="number"
                                     name="noPpl"
                                     value={values.noPpl}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
+                                    autoComplete="off"
                                     className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                                   />
+                                  {errors.noPpl && touched.noPpl && (
+                                    <p className="text-red-600 text-xs mt-1">{errors.noPpl}</p>
+                                  )}
                                 </div>
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">No Ciclos</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    No Ciclos <span className="text-red-500">*</span>
+                                  </label>
                                   <input
-                                    type="text"
+                                    type="number"
                                     name="noCiclos"
                                     value={values.noCiclos}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
+                                    autoComplete="off"
                                     className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                                   />
+                                  {errors.noCiclos && touched.noCiclos && (
+                                    <p className="text-red-600 text-xs mt-1">{errors.noCiclos}</p>
+                                  )}
                                 </div>
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">No. Servicios</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    No. Servicios <span className="text-red-500">*</span>
+                                  </label>
                                   <input
-                                    type="text"
+                                    type="number"
                                     name="noServicios"
                                     value={values.noServicios}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
+                                    autoComplete="off"
                                     className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                                   />
+                                  {errors.noServicios && touched.noServicios && (
+                                    <p className="text-red-600 text-xs mt-1">{errors.noServicios}</p>
+                                  )}
                                 </div>
                               </div>
 
                               {/* Segunda fila - Valor, Estado y Sede */}
                               <div className="grid grid-cols-2 gap-2 mb-3">
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">Estado Proceso</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    Estado Proceso <span className="text-red-500">*</span>
+                                  </label>
                                   <SelectWithSearch
                                     options={estadosProceso}
                                     value={values.estadoProceso}
                                     onChange={(value) => setFieldValue('estadoProceso', value)}
                                     placeholder="Seleccione estado"
+                                    disabled={true}
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">Valor</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    Valor <span className="text-red-500">*</span>
+                                  </label>
                                   <input
                                     type="text"
                                     name="valorContrato"
                                     value={formatCurrency(parseFloat(values.valorContrato) || 0)}
                                     onChange={(e) => handleCurrencyChange(e, setFieldValue)}
                                     onBlur={handleBlur}
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                    autoComplete="off"
+                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm text-right"
                                   />
+                                  {errors.valorContrato && touched.valorContrato && (
+                                    <p className="text-red-600 text-xs mt-1">{errors.valorContrato}</p>
+                                  )}
                                 </div>
 
                               </div>
 
                               <div className="grid grid-cols-1 gap-3 mb-3">
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">Sede Administrativa</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    Sede Administrativa <span className="text-red-500">*</span>
+                                  </label>
                                   <SelectWithSearch
                                     options={sucursales.map(s => ({ id: s.id.toString(), nombre: s.nombre }))}
                                     value={values.sedeAdministrativa}
@@ -1365,37 +1389,60 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                               {/* Fechas en 3 columnas */}
                               <div className="grid grid-cols-3 gap-3 mb-3">
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">Fecha Inicial</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    Fecha Inicial <span className="text-red-500">*</span>
+                                  </label>
                                   <input
                                     type="date"
                                     name="fechaInicial"
                                     value={values.fechaInicial}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                    onClick={(e) => e.currentTarget.showPicker?.()}
+                                    autoComplete="off"
+                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm cursor-pointer"
                                   />
+                                  {errors.fechaInicial && touched.fechaInicial && (
+                                    <p className="text-red-600 text-xs mt-1">{errors.fechaInicial}</p>
+                                  )}
                                 </div>
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">Fecha Final</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    Fecha Final <span className="text-red-500">*</span>
+                                  </label>
                                   <input
                                     type="date"
                                     name="fechaFinal"
                                     value={values.fechaFinal}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                    onClick={(e) => e.currentTarget.showPicker?.()}
+                                    autoComplete="off"
+                                    min={values.fechaInicial || undefined}
+                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm cursor-pointer"
                                   />
+                                  {errors.fechaFinal && touched.fechaFinal && (
+                                    <p className="text-red-600 text-xs mt-1">{errors.fechaFinal}</p>
+                                  )}
                                 </div>
                                 <div>
-                                  <label className="block text-sm text-gray-700 mb-1">Fecha Ejecución</label>
+                                  <label className="block text-sm text-gray-700 mb-1">
+                                    Fecha Ejecución <span className="text-red-500">*</span>
+                                  </label>
                                   <input
                                     type="date"
                                     name="fechaEjecucion"
                                     value={values.fechaEjecucion}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
-                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                    onClick={(e) => e.currentTarget.showPicker?.()}
+                                    autoComplete="off"
+                                    min={values.fechaInicial || undefined}
+                                    className="w-full px-2 py-1.5 border border-gray-300 rounded bg-yellow-50 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm cursor-pointer"
                                   />
+                                  {errors.fechaEjecucion && touched.fechaEjecucion && (
+                                    <p className="text-red-600 text-xs mt-1">{errors.fechaEjecucion}</p>
+                                  )}
                                 </div>
                               </div>
 
@@ -1422,7 +1469,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
 
                             <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                               <div className="p-4 border-b border-gray-200 bg-gray-50">
-                                <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                                   <Edit3 className="w-4 h-4 text-cyan-600" />
                                   Contenido de las Cláusulas
                                 </label>
@@ -1434,6 +1481,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                                   value={values.clausulas}
                                   onChange={handleChange}
                                   onBlur={handleBlur}
+                                  autoComplete="off"
                                   rows={12}
                                   className="w-full px-4 py-3 border-0 focus:ring-2 focus:ring-cyan-500 focus:outline-none resize-none text-sm leading-relaxed"
                                   placeholder="Ejemplo:&#10;&#10;PRIMERA: El contratante se compromete a...&#10;&#10;SEGUNDA: El contratista deberá cumplir con...&#10;&#10;TERCERA: En caso de incumplimiento..."
@@ -1464,14 +1512,12 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
                           </div>
                         </div>
                       )}
-
-
-                    </div>
-                  </div>
-                </Form >
+                    </Form>
+                  </CardContent>
+                </Card>
 
                 {/* Modal de selección de terceros */}
-                < TercerosModal
+                <TercerosModal
                   isOpen={showTercerosModal}
                   onClose={() => setShowTercerosModal(false)}
                   onSelect={handleSelectTercero}
@@ -1504,16 +1550,14 @@ const ContratoForm: React.FC<ContratoFormProps> = ({ contratoEnEdicion, onCancel
               </AlertDialogCancel>
               <AlertDialogAction
                 onClick={procesarFormulario}
-                className="bg-cyan-600 hover:bg-cyan-700"
+                className="bg-teal-600 hover:bg-teal-700"
               >
                 {contratoEnEdicion ? 'Actualizar' : 'Guardar'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-      </div>
-    </div >
+    </>
   );
 };
 

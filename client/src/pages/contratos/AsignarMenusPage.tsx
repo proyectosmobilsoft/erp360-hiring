@@ -648,7 +648,8 @@ const AsignarMenusPage: React.FC = () => {
         console.error('❌ Error cargando unidades:', error);
         setUnidadesFiltradas([]);
       } finally {
-        hideLoading();
+        setTimeout(() => hideLoading(), 5000)
+        
       }
     } else {
       setUnidadesFiltradas([]);
@@ -684,7 +685,7 @@ const AsignarMenusPage: React.FC = () => {
         variant: "destructive",
       });
     } finally {
-      hideLoading();
+      setTimeout(() => hideLoading(), 5000)
     }
   };
 
@@ -956,7 +957,7 @@ const AsignarMenusPage: React.FC = () => {
       });
     } finally {
       setIsSaving(false);
-      hideLoading();
+      setTimeout(() => hideLoading(), 5000)
     }
   };
 
@@ -1309,7 +1310,7 @@ const AsignarMenusPage: React.FC = () => {
         description: error.message || 'Ocurrió un error al eliminar la asignación'
       });
     } finally {
-      hideLoading();
+      setTimeout(() => hideLoading(), 5000)
     }
   };
 

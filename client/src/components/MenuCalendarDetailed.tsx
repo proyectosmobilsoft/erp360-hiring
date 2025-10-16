@@ -183,6 +183,22 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     }
   };
 
+  // Función para obtener el color de texto fuerte según el tipo de menú
+  const getMenuTypeTextColor = (tipo: string) => {
+    switch (tipo) {
+      case 'DESAYUNO':
+        return 'text-yellow-600';
+      case 'ALMUERZO':
+        return 'text-orange-600';
+      case 'CENA':
+        return 'text-purple-600';
+      case 'REFRIGERIO':
+        return 'text-green-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
   // Función para formatear la fecha
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -194,7 +210,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     });
   };
 
-  // Función para obtener las fechas de 4 semanas (28 días)
+  // Función para obtener las fechas de 1 semana (7 días)
   const getWeekDates = (startDate: string) => {
     const start = new Date(startDate);
     const dates = [];
@@ -205,8 +221,8 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     const mondayStart = new Date(start);
     mondayStart.setDate(start.getDate() + daysToMonday);
 
-    // Generar 28 días (4 semanas)
-    for (let i = 0; i < 28; i++) {
+    // Generar 7 días (1 semana)
+    for (let i = 0; i < 7; i++) {
       const date = new Date(mondayStart);
       date.setDate(mondayStart.getDate() + i);
       dates.push(date);
@@ -215,34 +231,28 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     return dates;
   };
 
-  // Función para obtener las semanas agrupadas
+  // Función para obtener la semana actual
   const getWeeksGrouped = (startDate: string) => {
     const start = new Date(startDate);
-    const weeks = [];
-    let currentWeekStart = new Date(start);
+    const currentWeekStart = new Date(start);
 
     // Ajustar al lunes de la semana actual
     const dayOfWeek = start.getDay();
     const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     currentWeekStart.setDate(start.getDate() + daysToMonday);
 
-    let weekNumber = 1;
-
-    // Generar 4 semanas (28 días)
-    for (let week = 0; week < 4; week++) {
+    // Generar 1 semana (7 días)
       const weekDates = [];
       for (let day = 0; day < 7; day++) {
         const date = new Date(currentWeekStart);
-        date.setDate(currentWeekStart.getDate() + (week * 7) + day);
+      date.setDate(currentWeekStart.getDate() + day);
         weekDates.push(date);
-      }
-      weeks.push({
-        weekNumber: weekNumber++,
-        dates: weekDates
-      });
     }
 
-    return weeks;
+    return [{
+      weekNumber: 1,
+      dates: weekDates
+    }];
   };
 
   // Función para obtener el nombre del día en español
@@ -255,6 +265,14 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   const getMonthName = (date: Date) => {
     const months = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.'];
     return months[date.getMonth()];
+  };
+
+  // Función para verificar si una fecha es el día actual
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
   };
 
   const weekDates = getWeekDates(fechaEjecucion);
@@ -283,11 +301,143 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
             </div>
           </div>
         ) : unidadesMenus.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="text-gray-500">
-              <UtensilsCrossed className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>No hay unidades de servicio asignadas a esta zona</p>
+          // Mostrar calendario vacío con estructura cuando no hay unidades
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border border-gray-300">
+              {/* Header de semanas agrupadas */}
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-gray-800" colSpan={2}>
+                    SEMANA ACTUAL
+                  </th>
+                  <th className="border border-gray-300 p-2 text-center text-sm font-semibold bg-teal-200 text-teal-900" colSpan={7}>
+                    SEMANA {weeksGrouped[0].weekNumber}
+                  </th>
+                </tr>
+              </thead>
+
+              {/* Header de días individuales */}
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="border border-gray-300 p-3 text-left text-base font-semibold text-gray-700" colSpan={2}>
+                    DÍAS
+                  </th>
+                  {weekDates.map((date, i) => {
+                    const isTodayDate = isToday(date);
+                    return (
+                      <th key={i} className={`border border-gray-300 p-3 text-center text-sm font-semibold whitespace-nowrap ${
+                        isTodayDate 
+                          ? 'bg-gray-200 text-gray-900 font-bold' 
+                          : 'bg-teal-50 text-teal-800'
+                      }`}>
+                        {`${getDayName(date)} ${date.getDate()}/${getMonthName(date)}`}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+
+              {/* Header de menús individuales */}
+              <thead>
+                <tr className="bg-blue-50">
+                  <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-blue-700" colSpan={2}>
+                    COMPONENTE/MENU
+                  </th>
+                  {weekDates.map((date, i) => {
+                    const isTodayDate = isToday(date);
+                    return (
+                      <th key={i} className={`border border-gray-300 p-2 text-center text-sm font-semibold w-64 min-w-64 ${
+                        isTodayDate 
+                          ? 'bg-gray-200 text-gray-900 font-bold' 
+                          : 'text-blue-700'
+                      }`}>
+                        Menu {i + 1}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+
+              <tbody>
+                {/* Mostrar clases de servicio vacías */}
+                {clasesServicios.length > 0 ? (
+                  clasesServicios.map((claseServicio) => {
+                    const componentesRelacionados = componentesMenus.filter(
+                      comp => comp.id_clase_servicio === claseServicio.id
+                    );
+
+                    if (componentesRelacionados.length === 0) {
+                      return (
+                        <tr key={`clase-${claseServicio.id}`}>
+                          <td className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} rowSpan={1}>
+                            <div className="flex items-center gap-2">
+                              {getMenuIcon(claseServicio.nombre.toUpperCase())}
+                              {claseServicio.nombre.toUpperCase()}
+                            </div>
+                          </td>
+                          <td className="border border-gray-300 p-2 text-center text-xs text-gray-400">
+                            Sin componentes
+                          </td>
+                          {weekDates.map((date, i) => {
+                            const isTodayDate = isToday(date);
+                            return (
+                              <td key={i} className={`border border-gray-300 p-2 text-center text-xs ${
+                                isTodayDate ? 'bg-gray-100' : ''
+                              }`}>
+                                -
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    }
+
+                    return componentesRelacionados.map((componente, compIndex) => {
+                      return (
+                        <tr key={`clase-${claseServicio.id}-comp-${componente.id}`} className={compIndex === 0 ? `border-t-[3px] ${getMenuTypeBorderColor(claseServicio.nombre.toUpperCase())}` : ''}>
+                          {compIndex === 0 && (
+                            <td 
+                              className={`border border-gray-300 p-3 font-semibold text-xs ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} 
+                              rowSpan={componentesRelacionados.length}
+                            >
+                              <div className="flex items-center gap-2">
+                                {getMenuIcon(claseServicio.nombre.toUpperCase())}
+                                {claseServicio.nombre.toUpperCase()}
+                              </div>
+                            </td>
+                          )}
+                          
+                          <td className={`border border-gray-300 p-2 text-xs font-medium w-48 min-w-48 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`}>
+                            {componente.nombre}
+                          </td>
+                          
+                          {weekDates.map((date, i) => {
+                            const isTodayDate = isToday(date);
+                            const bgColor = getMenuTypeColor(claseServicio.nombre.toUpperCase());
+                            return (
+                              <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${
+                                isTodayDate ? 'bg-gray-100' : bgColor
+                              }`}>
+                                -
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    });
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={weekDates.length + 2} className="border border-gray-300 p-8 text-center text-gray-500">
+                      <div className="flex flex-col items-center gap-2">
+                        <UtensilsCrossed className="w-8 h-8 text-gray-300" />
+                        <p>No hay clases de servicio configuradas</p>
             </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         ) : (
           <div className="space-y-6">
@@ -313,41 +463,29 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                       {/* Header de semanas agrupadas */}
                       <thead>
                         <tr className="bg-gray-100">
-                          <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-gray-800" colSpan={2}>
-                            SEMANAS
+                          <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-gray-800" colSpan={2}>
+                            SEMANA ACTUAL
                           </th>
-                          {weeksGrouped.map((week, weekIndex) => {
-                            const weekColors = [
-                              'bg-blue-200 text-blue-900',
-                              'bg-green-200 text-green-900',
-                              'bg-purple-200 text-purple-900',
-                              'bg-orange-200 text-orange-900'
-                            ];
-                            return (
-                              <th key={weekIndex} className={`border border-gray-300 p-2 text-center text-xs font-semibold ${weekColors[weekIndex]}`} colSpan={7}>
-                                SEMANA {week.weekNumber}
+                          <th className="border border-gray-300 p-2 text-center text-sm font-semibold bg-teal-200 text-teal-900" colSpan={7}>
+                            SEMANA {weeksGrouped[0].weekNumber}
                               </th>
-                            );
-                          })}
                         </tr>
                       </thead>
 
                       {/* Header de días individuales */}
                       <thead>
                         <tr className="bg-gray-50">
-                          <th className="border border-gray-300 p-3 text-left text-sm font-semibold text-gray-700" colSpan={2}>
+                          <th className="border border-gray-300 p-3 text-left text-base font-semibold text-gray-700" colSpan={2}>
                             DÍAS
                           </th>
                           {weekDates.map((date, i) => {
-                            const weekIndex = Math.floor(i / 7);
-                            const dayColors = [
-                              'bg-blue-100 text-blue-800',
-                              'bg-green-100 text-green-800',
-                              'bg-purple-100 text-purple-800',
-                              'bg-orange-100 text-orange-800'
-                            ];
+                            const isTodayDate = isToday(date);
                             return (
-                              <th key={i} className={`border border-gray-300 p-3 text-center text-xs font-semibold whitespace-nowrap ${dayColors[weekIndex]}`}>
+                              <th key={i} className={`border border-gray-300 p-3 text-center text-sm font-semibold whitespace-nowrap ${
+                                isTodayDate 
+                                  ? 'bg-gray-200 text-gray-900 font-bold' 
+                                  : 'bg-teal-50 text-teal-800'
+                              }`}>
                                 {`${getDayName(date)} ${date.getDate()}/${getMonthName(date)}`}
                               </th>
                             );
@@ -358,14 +496,21 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                       {/* Header de menús individuales */}
                       <thead>
                         <tr className="bg-blue-50">
-                          <th className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700" colSpan={2}>
+                          <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-blue-700" colSpan={2}>
                             COMPONENTE/MENU
                           </th>
-                          {weekDates.map((date, i) => (
-                            <th key={i} className="border border-gray-300 p-2 text-center text-xs font-semibold text-blue-700 w-64 min-w-64">
+                          {weekDates.map((date, i) => {
+                            const isTodayDate = isToday(date);
+                            return (
+                              <th key={i} className={`border border-gray-300 p-2 text-center text-sm font-semibold w-64 min-w-64 ${
+                                isTodayDate 
+                                  ? 'bg-gray-200 text-gray-900 font-bold' 
+                                  : 'text-blue-700'
+                              }`}>
                               Menu {i + 1}
                             </th>
-                          ))}
+                            );
+                          })}
                         </tr>
                       </thead>
 
@@ -391,11 +536,16 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                   <td className="border border-gray-300 p-2 text-center text-xs text-gray-400">
                                     Sin componentes
                                   </td>
-                                  {weekDates.map((date, i) => (
-                                    <td key={i} className="border border-gray-300 p-2 text-center text-xs">
+                                  {weekDates.map((date, i) => {
+                                    const isTodayDate = isToday(date);
+                                    return (
+                                      <td key={i} className={`border border-gray-300 p-2 text-center text-xs ${
+                                        isTodayDate ? 'bg-gray-100' : ''
+                                      }`}>
                                       -
                                     </td>
-                                  ))}
+                                    );
+                                  })}
                                 </tr>
                               );
                             }
@@ -458,6 +608,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                   {weekDates.map((date, i) => {
                                     // Obtener el color de fondo de la clase de servicio
                                     const bgColor = getMenuTypeColor(claseServicio.nombre.toUpperCase());
+                                    const isTodayDate = isToday(date);
 
                                     // Verificar si hay una receta asignada para este menú (índice i corresponde a Menu 1, Menu 2, etc.)
                                     // Solo mostramos ingredientes si el índice i es menor que la cantidad de recetas
@@ -486,12 +637,14 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                       // Si esta receta tiene ingredientes para este componente, mostrarlos
                                       if (ingredientesDelComponente.length > 0) {
                                         return (
-                                          <td key={i} className={`border border-gray-300 p-1 text-xs w-64 min-w-64 ${bgColor}`}>
+                                          <td key={i} className={`border border-gray-300 p-1 text-xs w-64 min-w-64 ${
+                                            isTodayDate ? 'bg-gray-100' : bgColor
+                                          }`}>
                                             {ingredientesDelComponente.map((ingrediente, idx) => (
                                               <div 
                                                 key={idx}
-                                                className="text-center font-semibold p-1 text-xs mb-1 last:mb-0 text-gray-600"
-                                                style={{ fontSize: '0.65rem' }}
+                                                className={`text-center font-semibold p-1 mb-1 last:mb-0 ${getMenuTypeTextColor(claseServicio.nombre.toUpperCase())}`}
+                                                style={{ fontSize: '1rem' }}
                                                 title={`${ingrediente.nombre} (${ingrediente.cantidad})`}>
                                                 {ingrediente.nombre}
                                               </div>
@@ -503,7 +656,9 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
 
                                     // Si no hay receta asignada para este menú o no hay ingredientes para este componente, celda vacía
                                     return (
-                                      <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${bgColor}`}>
+                                      <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${
+                                        isTodayDate ? 'bg-gray-100' : bgColor
+                                      }`}>
                                         -
                                       </td>
                                     );
