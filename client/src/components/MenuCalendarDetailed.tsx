@@ -520,11 +520,12 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                           </td>
                           {weekDates.map((date, i) => {
                             const isTodayDate = isToday(date);
+                            const esAntesDeLaEjecucion = i < ejecucionOffset;
                             return (
                               <td key={i} className={`border border-gray-300 p-2 text-center text-xs ${
                                 isTodayDate ? 'bg-gray-100' : ''
                               }`}>
-                                -
+                                {esAntesDeLaEjecucion ? '' : '-'}
                               </td>
                             );
                           })}
@@ -554,12 +555,13 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                           
                           {weekDates.map((date, i) => {
                             const isTodayDate = isToday(date);
+                            const esAntesDeLaEjecucion = i < ejecucionOffset;
                             const bgColor = getMenuTypeColor(claseServicio.nombre.toUpperCase());
                             return (
                               <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${
                                 isTodayDate ? 'bg-gray-100' : bgColor
                               }`}>
-                                -
+                                {esAntesDeLaEjecucion ? '' : '-'}
                               </td>
                             );
                           })}
@@ -715,12 +717,13 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                   </td>
                                   {weekDates.map((date, i) => {
                                     const isTodayDate = isToday(date);
+                                    const esAntesDeLaEjecucion = i < ejecucionOffset;
                                     return (
                                       <td key={i} className={`border border-gray-300 p-2 text-center text-xs ${
                                         isTodayDate ? 'bg-gray-100' : ''
                                       }`}>
-                                      -
-                                    </td>
+                                      {esAntesDeLaEjecucion ? '' : '-'}
+                                      </td>
                                     );
                                   })}
                                 </tr>
@@ -782,6 +785,17 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                     // Obtener el color de fondo de la clase de servicio
                                     const bgColor = getMenuTypeColor(claseServicio.nombre.toUpperCase());
                                     const isTodayDate = isToday(date);
+                                    const esAntesDeLaEjecucion = i < ejecucionOffset;
+
+                                    // Si es antes de la fecha de ejecución, mostrar celda vacía
+                                    if (esAntesDeLaEjecucion) {
+                                      return (
+                                        <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${
+                                          isTodayDate ? 'bg-gray-100' : bgColor
+                                        }`}>
+                                        </td>
+                                      );
+                                    }
 
                                     // Verificar si hay una receta asignada para este menú (índice i corresponde a Menu 1, Menu 2, etc.)
                                     // Solo mostramos ingredientes si el índice i es menor que la cantidad de recetas
@@ -796,8 +810,8 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                       ) || [];
 
                                       // Debug log para ver qué ingredientes se están procesando
-                                      if (i === 0 && ingredientesDelComponente.length > 0) {
-                                        console.log(`🔍 Menu ${i + 1} - Componente ${componente.nombre} para clase ${claseServicio.nombre}:`, {
+                                      if (i === ejecucionOffset && ingredientesDelComponente.length > 0) {
+                                        console.log(`🔍 Menu ${i - ejecucionOffset + 1} - Componente ${componente.nombre} para clase ${claseServicio.nombre}:`, {
                                           receta: receta.nombre,
                                           ingredientes: ingredientesDelComponente.map(ing => ({
                                             nombre: ing.nombre,
