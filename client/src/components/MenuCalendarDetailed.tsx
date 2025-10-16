@@ -53,6 +53,7 @@ interface ComponenteMenu {
 interface MenuCalendarDetailedProps {
   zonaId: string;
   zonaNombre: string;
+  fechaInicial: string;
   fechaEjecucion: string;
   unidadesMenus: UnitMenu[];
 }
@@ -60,6 +61,7 @@ interface MenuCalendarDetailedProps {
 const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   zonaId,
   zonaNombre,
+  fechaInicial,
   fechaEjecucion,
   unidadesMenus
 }) => {
@@ -216,12 +218,12 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     });
   };
 
-  // Función para obtener las fechas de 7 días consecutivos desde la fecha de ejecución
+  // Función para obtener las fechas de 7 días consecutivos desde la fecha inicial
   const getWeekDates = (startDate: string) => {
     const dates = [];
     const start = parseDateWithoutTimezone(startDate);
 
-    // Generar exactamente 7 días consecutivos desde la fecha de inicio
+    // Generar exactamente 7 días consecutivos desde la fecha inicial
     for (let i = 0; i < 7; i++) {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
@@ -239,6 +241,15 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
       weekNumber: 1,
       dates: weekDates
     }];
+  };
+
+  // Calcular el offset de días entre fecha inicial y fecha de ejecución
+  const getEjecucionOffset = () => {
+    const inicial = parseDateWithoutTimezone(fechaInicial);
+    const ejecucion = parseDateWithoutTimezone(fechaEjecucion);
+    const diffTime = ejecucion.getTime() - inicial.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays); // Asegurar que no sea negativo
   };
 
   // Función para obtener el nombre del día en español
@@ -261,20 +272,27 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
            date.getFullYear() === today.getFullYear();
   };
 
-  const weekDates = getWeekDates(fechaEjecucion);
-  const weeksGrouped = getWeeksGrouped(fechaEjecucion);
+  const weekDates = getWeekDates(fechaInicial);
+  const weeksGrouped = getWeeksGrouped(fechaInicial);
+  const ejecucionOffset = getEjecucionOffset();
 
   // Consolidar todos los menús de todas las unidades en un solo array
   // Agrupamos por índice de menú (día) para tener todos los menús del mismo día juntos
+  // Los menús se asignan desde la fecha de ejecución, no desde la fecha inicial
   const consolidatedMenus = weekDates.map((date, dayIndex) => {
     const menusDelDia: MenuItem[] = [];
     
-    // Recopilar todos los menús de este índice de todas las unidades
-    unidadesMenus.forEach(unidad => {
-      if (unidad.menus && unidad.menus[dayIndex]) {
-        menusDelDia.push(unidad.menus[dayIndex]);
-      }
-    });
+    // Solo asignar menús si el día es igual o posterior a la fecha de ejecución
+    if (dayIndex >= ejecucionOffset) {
+      const menuIndex = dayIndex - ejecucionOffset;
+      
+      // Recopilar todos los menús de este índice de todas las unidades
+      unidadesMenus.forEach(unidad => {
+        if (unidad.menus && unidad.menus[menuIndex]) {
+          menusDelDia.push(unidad.menus[menuIndex]);
+        }
+      });
+    }
     
     return menusDelDia;
   });
@@ -373,10 +391,14 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
             <CalendarIcon className="w-5 h-5 text-teal-600" />
             Calendario de Menús Detallado - {zonaNombre}
           </CardTitle>
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-gray-600 flex gap-6">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Fecha de Ejecucion: {formatDate(fechaEjecucion)}
+            Fecha Inicial: {formatDate(fechaInicial)}
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-teal-600" />
+            <span className="font-semibold">Fecha de Ejecución: {formatDate(fechaEjecucion)}</span>
           </div>
         </div>
       </CardHeader>

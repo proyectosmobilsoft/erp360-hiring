@@ -845,6 +845,7 @@ const MinutasContratoPage: React.FC = () => {
               <MenuCalendarDetailed
                 zonaId={zonaActiva || ''}
                 zonaNombre={zonaActiva ? (zonasDisponibles.find(z => z.id === zonaActiva)?.nombre || 'Zona') : 'Seleccione un contrato y zona'}
+                fechaInicial={contratoSeleccionado?.['Inicial:DT:colspan:[Fechas del Contrato]:width[110]'] || new Date().toISOString().split('T')[0]}
                 fechaEjecucion={contratoSeleccionado?.['Ejecucion:DT:colspan:[Fechas del Contrato]'] || new Date().toISOString().split('T')[0]}
                 unidadesMenus={zonaActiva ? unidadesConMenus.map(unidad => ({
                   unidad_id: unidad.unidad_id,
