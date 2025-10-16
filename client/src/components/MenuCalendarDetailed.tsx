@@ -359,29 +359,9 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
           background: linear-gradient(135deg, #155e75, #0f766e);
         }
         
-        /* Scrollbar de la tabla */
+        /* Scrollbar de la tabla - OCULTO (solo visible el scroll superior) */
         .table-scroll-container::-webkit-scrollbar {
-          height: 10px;
-        }
-        
-        .table-scroll-container::-webkit-scrollbar-track {
-          background: linear-gradient(to right, #f0fdfa, #ccfbf1);
-          border-radius: 8px;
-          border: 1px solid #99f6e4;
-        }
-        
-        .table-scroll-container::-webkit-scrollbar-thumb {
-          background: linear-gradient(135deg, #14b8a6, #06b6d4);
-          border-radius: 8px;
-          border: 2px solid #f0fdfa;
-        }
-        
-        .table-scroll-container::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(135deg, #0d9488, #0891b2);
-        }
-        
-        .table-scroll-container::-webkit-scrollbar-thumb:active {
-          background: linear-gradient(135deg, #0f766e, #0e7490);
+          display: none; /* Chrome, Safari, Opera */
         }
       `}</style>
       
@@ -434,15 +414,21 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
               </div>
             </div>
             
-            {/* Contenedor de la tabla con scroll sincronizado */}
+            {/* Contenedor de la tabla - scrollbar oculto visualmente pero funcional */}
             <div 
-              className="overflow-x-scroll overflow-y-hidden table-scroll-container" 
+              className="overflow-x-auto overflow-y-hidden table-scroll-container"
+              style={{
+                scrollbarWidth: 'none', /* Firefox */
+                msOverflowStyle: 'none'  /* IE and Edge */
+              }}
               onScroll={(e) => {
                 const scrollTop = e.currentTarget.previousElementSibling?.querySelector('.top-scroll') as HTMLElement;
                 if (scrollTop && !e.currentTarget.dataset.scrolling) {
                   e.currentTarget.dataset.scrolling = 'true';
                   scrollTop.scrollLeft = e.currentTarget.scrollLeft;
-                  setTimeout(() => delete e.currentTarget.dataset.scrolling, 0);
+                  setTimeout(() => {
+                    if (e.currentTarget) delete e.currentTarget.dataset.scrolling;
+                  }, 0);
                 }
                 
                 // Agregar borde a columnas sticky cuando hay scroll
@@ -618,15 +604,21 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                       </div>
                     </div>
                     
-                    {/* Contenedor de la tabla con scroll sincronizado */}
+                    {/* Contenedor de la tabla - scrollbar oculto visualmente pero funcional */}
                     <div 
-                      className="overflow-x-scroll overflow-y-hidden table-scroll-container" 
+                      className="overflow-x-auto overflow-y-hidden table-scroll-container"
+                      style={{
+                        scrollbarWidth: 'none', /* Firefox */
+                        msOverflowStyle: 'none'  /* IE and Edge */
+                      }}
                       onScroll={(e) => {
                         const scrollTop = e.currentTarget.previousElementSibling?.querySelector('.top-scroll') as HTMLElement;
                         if (scrollTop && !e.currentTarget.dataset.scrolling) {
                           e.currentTarget.dataset.scrolling = 'true';
                           scrollTop.scrollLeft = e.currentTarget.scrollLeft;
-                          setTimeout(() => delete e.currentTarget.dataset.scrolling, 0);
+                          setTimeout(() => {
+                            if (e.currentTarget) delete e.currentTarget.dataset.scrolling;
+                          }, 0);
                         }
                         
                         // Agregar borde a columnas sticky cuando hay scroll
