@@ -305,6 +305,9 @@ const MinutasContratoPage: React.FC = () => {
   const [overlayVisible, setOverlayVisible] = useState<string | null>(null);
   const [unidadesOverlay, setUnidadesOverlay] = useState<UnidadConMenu[]>([]);
   const [pplPorZona, setPplPorZona] = useState<Record<string, number>>({});
+  const [productosDetalleZona, setProductosDetalleZona] = useState<any[]>([]);
+  const [unidadesDisponibles, setUnidadesDisponibles] = useState<{ id: string; nombre: string }[]>([]);
+  const [unidadSeleccionada, setUnidadSeleccionada] = useState<string>('');
 
   useEffect(() => {
     cargarContratos();
@@ -352,10 +355,13 @@ const MinutasContratoPage: React.FC = () => {
       console.log('📊 Zonas encontradas:', data);
 
       if (data && data.length > 0) {
-        const zonas = data.map(item => ({
-          id: item.prod_zonas_contrato.id.toString(),
-          nombre: `${item.prod_zonas_contrato.codigo} - ${item.prod_zonas_contrato.nombre}`
-        }));
+        const zonas = data.map(item => {
+          const zona = Array.isArray(item.prod_zonas_contrato) ? item.prod_zonas_contrato[0] : item.prod_zonas_contrato;
+          return {
+            id: zona?.id.toString() || '',
+            nombre: `${zona?.codigo || ''} - ${zona?.nombre || ''}`
+          };
+        });
         setZonasDisponibles(zonas);
       } else {
         // Si no hay zonas específicas, mostrar todas las zonas disponibles
@@ -385,7 +391,17 @@ const MinutasContratoPage: React.FC = () => {
       console.log('🍽️ Cargando menús para zona ID:', zonaId);
 
       // Obtener el número de ciclos del contrato seleccionado
-      const noCiclos = contratoSeleccionado?.['No. Días'] || 15;
+      // Calcular basado en la diferencia entre fecha final e inicial, o usar un valor por defecto
+      const fechaInicial = contratoSeleccionado?.['Inicial:DT:colspan:[Fechas del Contrato]:width[110]'];
+      const fechaFinal = contratoSeleccionado?.['Final:DT:colspan:[Fechas del Contrato]'];
+      let noCiclos = 15; // Valor por defecto
+      if (fechaInicial && fechaFinal) {
+        const inicial = new Date(fechaInicial);
+        const final = new Date(fechaFinal);
+        const diffTime = final.getTime() - inicial.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        noCiclos = diffDays > 0 ? diffDays : 15;
+      }
       console.log('📅 Número de ciclos del contrato:', noCiclos);
 
       // Generar menús dinámicos basados en el número de ciclos
@@ -442,6 +458,9 @@ const MinutasContratoPage: React.FC = () => {
     setZonaSeleccionada('');
     setZonaActiva('');
     setMenusZona([]);
+    setUnidadSeleccionada('');
+    setUnidadesDisponibles([]);
+    setProductosDetalleZona([]);
 
     if (contratoValue) {
       // Buscar por ID del contrato
@@ -463,73 +482,133 @@ const MinutasContratoPage: React.FC = () => {
     }
   };
 
+  const cargarUnidadesPorZona = async (zonaId: string) => {
+    try {
+      console.log('🔍 Cargando unidades de servicio para zona ID:', zonaId);
+
+      if (!contratoSeleccionado?.id) {
+        setUnidadesDisponibles([]);
+        return;
+      }
+
+      // Primero verificar que la zona pertenezca al contrato
+      const { data: zonaContrato, error: errorZonaContrato } = await supabase
+        .from('prod_zonas_by_contrato')
+        .select('id_zona')
+        .eq('id_zona', parseInt(zonaId))
+        .eq('id_contrato', contratoSeleccionado.id)
+        .single();
+
+      if (errorZonaContrato || !zonaContrato) {
+        console.error('❌ La zona no pertenece al contrato seleccionado:', errorZonaContrato);
+        setUnidadesDisponibles([]);
+        return;
+      }
+
+      // Obtener las unidades de servicio de la zona desde prod_zonas_detalle_contratos
+      const { data, error } = await supabase
+        .from('prod_zonas_detalle_contratos')
+        .select(`
+          id_unidad_servicio,
+          prod_unidad_servicios (
+            id,
+            nombre_servicio
+          )
+        `)
+        .eq('id_zona', parseInt(zonaId));
+
+      if (error) {
+        console.error('❌ Error consultando unidades de servicio:', error);
+        setUnidadesDisponibles([]);
+        return;
+      }
+
+      console.log('📊 Unidades encontradas:', data);
+
+      if (data && data.length > 0) {
+        const unidades = data.map(item => {
+          const unidad = Array.isArray(item.prod_unidad_servicios) 
+            ? item.prod_unidad_servicios[0] 
+            : item.prod_unidad_servicios;
+          return {
+            id: unidad?.id.toString() || '',
+            nombre: unidad?.nombre_servicio || 'Sin nombre'
+          };
+        });
+        setUnidadesDisponibles(unidades);
+      } else {
+        setUnidadesDisponibles([]);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando unidades de servicio:', error);
+      setUnidadesDisponibles([]);
+    }
+  };
+
   const handleZonaChange = async (zonaId: string) => {
     setZonaSeleccionada(zonaId);
+    setUnidadSeleccionada(''); // Limpiar unidad seleccionada al cambiar zona
+    setProductosDetalleZona([]); // Limpiar productos
 
     if (zonaId) {
-      // Ejecutar automáticamente el click en la zona
-      await handleZonaClick(zonaId);
+      // Cargar unidades de servicio de la zona
+      await cargarUnidadesPorZona(zonaId);
     } else {
       setZonaActiva('');
       setMenusZona([]);
       setUnidadesConMenus([]);
+      setUnidadesDisponibles([]);
     }
   };
 
-  const handleZonaClick = async (zonaId: string) => {
-    setZonaActiva(zonaId);
+  const handleUnidadChange = async (unidadId: string) => {
+    setUnidadSeleccionada(unidadId);
     setCargandoUnidades(true);
 
     try {
-      // Cargar menús dinámicos (código existente)
-      await cargarMenusPorZona(zonaId);
+      if (unidadId && contratoSeleccionado?.id && zonaSeleccionada) {
+        // Cargar menús dinámicos
+        await cargarMenusPorZona(zonaSeleccionada);
 
-      // Cargar unidades reales con menús asignados
-      if (contratoSeleccionado?.id) {
-        console.log('🔍 Cargando unidades para zona:', zonaId, 'contrato:', contratoSeleccionado.id);
-
-        const response = await MinutasService.getUnidadesConMenusPorZona(
+        // Ejecutar la consulta de productos con detalle para la unidad específica
+        console.log('🔍 Ejecutando consulta de productos con detalle para unidad:', unidadId);
+        const productosResponse = await MinutasService.getProductosConDetallePorUnidad(
+          parseInt(unidadId),
           contratoSeleccionado.id,
-          parseInt(zonaId)
+          activeMenuTab === 'estandar' ? 'Estandar' : 'Especial'
         );
 
-        if (response.data) {
-          setUnidadesConMenus(response.data);
-          console.log('✅ Unidades con menús cargadas:', response.data);
-
-          // Guardar el PPL total para esta zona
-          setPplPorZona(prev => ({
-            ...prev,
-            [zonaId]: response.data.length // Cada unidad representa 1 PPL
-          }));
-
-          // Debug: Log de cada unidad y sus menús
-          response.data.forEach((unidad, index) => {
-            console.log(`📋 Unidad ${index + 1}:`, {
-              id: unidad.unidad_id,
-              nombre: unidad.unidad_nombre,
-              menusCount: unidad.menus.length,
-              menus: unidad.menus.map(menu => ({
-                nombre: menu.nombre_receta,
-                tipo: menu.nombre_servicio,
-                ingredientes: menu.ingredientes
-              }))
-            });
-          });
-        } else if (response.error) {
-          console.error('❌ Error cargando unidades con menús:', response.error);
-          setUnidadesConMenus([]);
+        if (productosResponse.data) {
+          setProductosDetalleZona(productosResponse.data);
+          console.log('✅ Productos con detalle cargados para unidad:', productosResponse.data);
+          console.log('📊 Total de productos:', productosResponse.data.length);
+          // Log detallado de la estructura de los productos
+          if (productosResponse.data.length > 0) {
+            console.log('📋 Estructura del primer producto:', JSON.stringify(productosResponse.data[0], null, 2));
+          }
+        } else if (productosResponse.error) {
+          console.error('❌ Error cargando productos con detalle:', productosResponse.error);
+          setProductosDetalleZona([]);
         }
+
+        setUnidadesConMenus([]);
       } else {
-        console.log('⚠️ No hay contrato seleccionado');
+        setProductosDetalleZona([]);
         setUnidadesConMenus([]);
       }
     } catch (error) {
       console.error('❌ Error inesperado:', error);
       setUnidadesConMenus([]);
+      setProductosDetalleZona([]);
     } finally {
       setCargandoUnidades(false);
     }
+  };
+
+  const handleZonaClick = async (zonaId: string) => {
+    setZonaActiva(zonaId);
+    // Este método ya no se usa directamente, pero lo mantenemos por compatibilidad
+    // La lógica ahora se maneja en handleUnidadChange
   };
 
   const handleVerUnidades = async (zonaId: string, event: React.MouseEvent) => {
@@ -553,11 +632,13 @@ const MinutasContratoPage: React.FC = () => {
           parseInt(zonaId)
         );
 
-        if (response.data) {
+        if (response.data && response.data.length > 0) {
           setUnidadesOverlay(response.data);
           console.log('✅ Unidades para overlay cargadas:', response.data);
         } else if (response.error) {
           console.error('❌ Error cargando unidades para overlay:', response.error);
+          setUnidadesOverlay([]);
+        } else {
           setUnidadesOverlay([]);
         }
       }
@@ -589,17 +670,19 @@ const MinutasContratoPage: React.FC = () => {
           parseInt(zonaId)
         );
 
-        if (response.data) {
+        if (response.data && response.data.length > 0) {
           setUnidadesOverlay(response.data);
           console.log('✅ Unidades para overlay cargadas:', response.data);
 
           // Guardar el PPL total para esta zona (si no se había guardado antes)
           setPplPorZona(prev => ({
             ...prev,
-            [zonaId]: prev[zonaId] || response.data.length // Solo actualizar si no existe
+            [zonaId]: prev[zonaId] || response.data!.length // Solo actualizar si no existe
           }));
         } else if (response.error) {
           console.error('❌ Error cargando unidades para overlay:', response.error);
+          setUnidadesOverlay([]);
+        } else {
           setUnidadesOverlay([]);
         }
       }
@@ -645,6 +728,15 @@ const MinutasContratoPage: React.FC = () => {
       toast({
         title: "Seleccione una zona",
         description: "Debe seleccionar una zona para guardar la configuración",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!unidadSeleccionada) {
+      toast({
+        title: "Seleccione una unidad de servicio",
+        description: "Debe seleccionar una unidad de servicio para guardar la configuración",
         variant: "destructive",
       });
       return;
@@ -773,7 +865,7 @@ const MinutasContratoPage: React.FC = () => {
               />
             </div>
 
-            {/* Row 3: Cantidades por día y Grupos/Zonas */}
+            {/* Row 3: Cantidades por día */}
             <div className="col-span-1">
               <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
                 <Settings className="w-3 h-3 text-gray-600" />
@@ -810,18 +902,35 @@ const MinutasContratoPage: React.FC = () => {
               />
             </div>
 
-            <div className="col-span-3">
-              <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-indigo-600" />
-                Grupos / Zonas
-              </label>
-              <SelectWithSearch
-                options={zonasDisponibles}
-                value={zonaSeleccionada}
-                onChange={handleZonaChange}
-                placeholder="Seleccionar zona..."
-                disabled={!selectedContrato}
-              />
+            {/* Row 4: Grupos/Zonas y Unidad de Servicio - Ocupan el final de la fila */}
+            <div className="col-span-3 flex gap-2">
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-indigo-600" />
+                  Grupos / Zonas
+                </label>
+                <SelectWithSearch
+                  options={zonasDisponibles}
+                  value={zonaSeleccionada}
+                  onChange={handleZonaChange}
+                  placeholder="Seleccionar zona..."
+                  disabled={!selectedContrato}
+                />
+              </div>
+
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                  <Users className="w-3 h-3 text-indigo-600" />
+                  Unidad de Servicio
+                </label>
+                <SelectWithSearch
+                  options={unidadesDisponibles}
+                  value={unidadSeleccionada}
+                  onChange={handleUnidadChange}
+                  placeholder="Seleccionar unidad..."
+                  disabled={!zonaSeleccionada}
+                />
+              </div>
             </div>
           </div>
 
@@ -843,8 +952,14 @@ const MinutasContratoPage: React.FC = () => {
               </div>
             ) : (
               <MenuCalendarDetailed
-                zonaId={zonaActiva || ''}
-                zonaNombre={zonaActiva ? (zonasDisponibles.find(z => z.id === zonaActiva)?.nombre || 'Zona') : 'Seleccione un contrato y zona'}
+                zonaId={unidadSeleccionada || zonaActiva || ''}
+                zonaNombre={
+                  unidadSeleccionada 
+                    ? `${zonasDisponibles.find(z => z.id === zonaSeleccionada)?.nombre || 'Zona'} - ${unidadesDisponibles.find(u => u.id === unidadSeleccionada)?.nombre || 'Unidad'}`
+                    : zonaSeleccionada 
+                      ? zonasDisponibles.find(z => z.id === zonaSeleccionada)?.nombre || 'Zona'
+                      : 'Seleccione un contrato, zona y unidad de servicio'
+                }
                 fechaInicial={contratoSeleccionado?.['Inicial:DT:colspan:[Fechas del Contrato]:width[110]'] || new Date().toISOString().split('T')[0]}
                 fechaEjecucion={contratoSeleccionado?.['Ejecucion:DT:colspan:[Fechas del Contrato]'] || new Date().toISOString().split('T')[0]}
                 unidadesMenus={zonaActiva ? unidadesConMenus.map(unidad => ({
@@ -860,6 +975,8 @@ const MinutasContratoPage: React.FC = () => {
                     ingredientes_detallados: menu.ingredientes_detallados || []
                   }))
                 })) : []}
+                productosDetalleZona={productosDetalleZona}
+                noCiclos={contratoSeleccionado?.['No. Ciclos'] || 7}
               />
             )}
           </div>
@@ -869,7 +986,7 @@ const MinutasContratoPage: React.FC = () => {
             <Button
               onClick={handleGuardarMinutas}
               className="bg-teal-600 hover:bg-teal-700 text-white"
-              disabled={!zonaSeleccionada}
+              disabled={!zonaSeleccionada || !unidadSeleccionada}
             >
               <Check className="w-4 h-4 mr-2" />
               Guardar Configuración

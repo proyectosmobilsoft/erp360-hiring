@@ -1623,8 +1623,8 @@ const AsignarMenusPage: React.FC = () => {
                               {/* Acordeones por nombre de servicio */}
                               <div className="space-y-3">
                                 {(() => {
-                                  const recetasAgrupadas = agruparRecetasPorNombreServicio(asignacion.recetas);
-                                  return Object.entries(recetasAgrupadas).map(([nombreServicio, recetas]) => {
+                                  const recetasAgrupadasPorServicio = agruparRecetasPorNombreServicio(asignacion.recetas);
+                                  return Object.entries(recetasAgrupadasPorServicio).map(([nombreServicio, recetas]) => {
                                     if (recetas.length === 0) return null;
                                     
                                     const acordeonKey = `${asignacion.unidadId}-${nombreServicio}`;
@@ -1701,7 +1701,8 @@ const AsignarMenusPage: React.FC = () => {
 
                                             // Si no existe en otras unidades, desmarcar del catálogo
                                             if (!recetaExisteEnOtrasUnidades) {
-                                              // Buscar la receta original en recetasAgrupadas
+                                              // Buscar la receta original en el estado recetasAgrupadas (array)
+                                              // Usar el estado del componente, no la variable local del scope
                                               const recetaOriginal = recetasAgrupadas.find(r => r.id === receta.id && r.unidad_servicio === receta.unidad_servicio);
                                               if (recetaOriginal) {
                                                 const recetaIdUnico = generarIdUnico(recetaOriginal.id, recetaOriginal.unidad_servicio);

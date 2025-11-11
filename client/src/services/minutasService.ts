@@ -304,14 +304,6 @@ export class MinutasService {
           // Simular ingredientes basados en el nombre del producto
           const ingredientes = generarIngredientes(producto.nombre);
           
-          // Obtener ingredientes detallados con su relación a componentes de menú
-          const ingredientesDetallados = await MinutasService.getIngredientesDetalladosReceta(producto.id);
-          
-          console.log(`📋 Ingredientes detallados de ${producto.nombre}:`, {
-            count: ingredientesDetallados.length,
-            ingredientes: ingredientesDetallados
-          });
-          
           // Determinar el nombre del servicio
           let nombreServicio = '';
           if (producto.inv_clase_servicios) {
@@ -332,7 +324,7 @@ export class MinutasService {
             nombre_servicio: nombreServicio,
             fecha_asignacion: asignacion.created_at,
             ingredientes: ingredientes,
-            ingredientes_detallados: ingredientesDetallados,
+            ingredientes_detallados: [],
             descripcion: producto.nombre
           };
         }));
@@ -386,5 +378,423 @@ export class MinutasService {
       console.error('❌ Error inesperado obteniendo detalle del contrato:', error);
       return { data: null, error };
     }
+  }
+
+  /**
+   * Obtiene productos/menús con sus componentes y detalles para una unidad de servicio
+   * usando la función RPC creada en la base de datos
+   */
+  static async getProductosConDetallePorUnidad(
+    unidadServicioId: number,
+    contratoId: number,
+    tipoMenu: string = 'Estandar'
+  ): Promise<{ data: any[] | null; error: any }> {
+    try {
+      console.log('🔍 Obteniendo productos con detalle para unidad:', unidadServicioId, 'contrato:', contratoId, 'tipo:', tipoMenu);
+
+      // Llamar a la función RPC creada en la base de datos
+      const { data, error } = await supabase.rpc('get_productos_detalle_zona', {
+        p_id_unidad_servicio: unidadServicioId,
+        p_id_contrato: contratoId,
+        p_tipo_menu: tipoMenu
+      });
+
+      if (error) {
+        console.error('❌ Error ejecutando función RPC:', error);
+        return { data: null, error };
+      }
+
+      // El resultado ya es un array JSON parseado
+      console.log('✅ Productos obtenidos:', data);
+      return { data: data || [], error: null };
+    } catch (error) {
+      console.error('❌ Error inesperado obteniendo productos con detalle:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * Obtiene productos/menús con sus componentes y detalles para todas las unidades de servicio de una zona
+   */
+  static async getProductosConDetallePorZona(
+    zonaId: number,
+    contratoId: number,
+    tipoMenu: string = 'Estandar'
+  ): Promise<{ data: any[] | null; error: any }> {
+    try {
+      console.log('🔍 Obteniendo productos con detalle para zona:', zonaId, 'contrato:', contratoId, 'tipo:', tipoMenu);
+
+      // Primero obtener todas las unidades de servicio de la zona
+      const { data: zonasDetalle, error: errorZonasDetalle } = await supabase
+        .from('prod_zonas_detalle_contratos')
+        .select('id_unidad_servicio')
+        .eq('id_zona', zonaId);
+
+      if (errorZonasDetalle) {
+        console.error('❌ Error obteniendo detalle de zonas:', errorZonasDetalle);
+        return { data: null, error: errorZonasDetalle };
+      }
+
+      if (!zonasDetalle || zonasDetalle.length === 0) {
+        console.log('⚠️ No se encontraron unidades para esta zona');
+        return { data: [], error: null };
+      }
+
+      // Obtener los IDs de las unidades
+      const unidadIds = zonasDetalle.map(z => z.id_unidad_servicio);
+      console.log(`📊 Consolidando datos de ${unidadIds.length} unidades de servicio para la zona ${zonaId}`);
+
+      // Ejecutar la consulta para cada unidad de servicio y consolidar resultados
+      const productosConsolidados: any[] = [];
+      let unidadesProcesadas = 0;
+      
+      for (const unidadId of unidadIds) {
+        const resultado = await MinutasService.getProductosConDetallePorUnidad(
+          unidadId,
+          contratoId,
+          tipoMenu
+        );
+
+        if (resultado.data && resultado.data.length > 0) {
+          unidadesProcesadas++;
+          // Agregar id_unidad_servicio a cada producto para poder agrupar después
+          const productosConUnidad = resultado.data.map((producto: any) => ({
+            ...producto,
+            id_unidad_servicio: unidadId
+          }));
+          productosConsolidados.push(...productosConUnidad);
+          console.log(`  ✓ Unidad ${unidadId}: ${resultado.data.length} productos agregados`);
+        }
+      }
+
+      console.log('✅ JSON Consolidado del RPC:', {
+        totalUnidades: unidadIds.length,
+        unidadesProcesadas,
+        totalProductos: productosConsolidados.length,
+        estructura: productosConsolidados.length > 0 ? {
+          ejemplo: productosConsolidados[0],
+          campos: Object.keys(productosConsolidados[0] || {})
+        } : null
+      });
+
+      // Mostrar resumen del JSON consolidado
+      if (productosConsolidados.length > 0) {
+        const resumen = productosConsolidados.reduce((acc, producto) => {
+          const clave = `${producto.num_menu || 'N/A'}-${producto.id_clase_servicio || 'N/A'}`;
+          acc[clave] = (acc[clave] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        console.log('📋 Resumen del JSON consolidado por menú y clase de servicio:', resumen);
+      }
+
+      return { data: productosConsolidados, error: null };
+    } catch (error) {
+      console.error('❌ Error inesperado obteniendo productos con detalle por zona:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * Transforma los datos de get_productos_detalle_zona al formato que espera el calendario
+   * Similar a la lógica del componente Angular DetalleCiclosComponent
+   * Valida que los id_clase_servicio e id_componente existan en las listas de validación
+   */
+  static transformarDatosParaCalendario(
+    productosDetalle: any[],
+    noCiclos: number,
+    clasesServicios: Array<{ id: number; nombre: string }> = [],
+    componentesMenus: Array<{ id: number; nombre: string; id_clase_servicio: number }> = []
+  ): {
+    detallemenus: Array<{
+      id_clase_servicio: number;
+      nombre: string;
+      id_componente: number;
+      componente: string;
+      ingredientes: Array<{
+        menu: number;
+        nombre: string;
+        cantidad?: number;
+        medida?: string;
+        id_producto?: number;
+        id_detalle?: number;
+        costo?: number;
+        total?: number;
+      }>;
+    }>;
+    validaciones: {
+      clasesValidadas: number;
+      componentesValidadas: number;
+      ingredientesProcesados: number;
+      ingredientesOmitidos: number;
+      errores: Array<{ tipo: string; mensaje: string; datos: any }>;
+    };
+  } {
+    const detallemenus: Array<{
+      id_clase_servicio: number;
+      nombre: string;
+      id_componente: number;
+      componente: string;
+      ingredientes: Array<{
+        menu: number;
+        nombre: string;
+        cantidad?: number;
+        medida?: string;
+        id_producto?: number;
+        id_detalle?: number;
+        costo?: number;
+        total?: number;
+      }>;
+    }> = [];
+
+    const validaciones = {
+      clasesValidadas: 0,
+      componentesValidadas: 0,
+      ingredientesProcesados: 0,
+      ingredientesOmitidos: 0,
+      errores: [] as Array<{ tipo: string; mensaje: string; datos: any }>
+    };
+
+    // Crear mapas para validación rápida
+    const clasesServiciosMap = new Map(clasesServicios.map(cs => [cs.id, cs]));
+    const componentesMenusMap = new Map(
+      componentesMenus.map(cm => [`${cm.id_clase_servicio}-${cm.id}`, cm])
+    );
+
+    console.log('🔍 Validando datos del RPC:', {
+      totalProductos: productosDetalle.length,
+      clasesServiciosDisponibles: clasesServicios.length,
+      componentesDisponibles: componentesMenus.length,
+      clasesMap: Array.from(clasesServiciosMap.keys()),
+      componentesMap: Array.from(componentesMenusMap.keys()),
+      clasesServicios: clasesServicios.map(cs => ({ id: cs.id, nombre: cs.nombre })),
+      componentesSample: componentesMenus.slice(0, 5).map(cm => ({ 
+        id: cm.id, 
+        nombre: cm.nombre, 
+        id_clase_servicio: cm.id_clase_servicio 
+      }))
+    });
+
+    // Recorrer cada producto/receta
+    productosDetalle.forEach((receta, recetaIndex) => {
+      // Si num_menu es null, usar 1 como valor por defecto
+      let numMenu = receta.num_menu;
+      if (numMenu === null || numMenu === undefined) {
+        numMenu = 1;
+        console.warn(`⚠️ num_menu es null/undefined en receta ${recetaIndex}, usando valor por defecto: 1`);
+      }
+      numMenu = Math.max(1, Math.min(numMenu, noCiclos)); // Asegurar que esté en el rango válido
+      
+      const idClaseServicio = receta.id_clase_servicio;
+      const nombreServicio = receta.nombre_servicio || '';
+
+      // VALIDACIÓN 1: Verificar que la clase de servicio existe
+      const claseServicioValida = clasesServiciosMap.get(idClaseServicio);
+      if (!claseServicioValida) {
+        validaciones.errores.push({
+          tipo: 'clase_servicio_no_encontrada',
+          mensaje: `Clase de servicio con ID ${idClaseServicio} no existe en las clases disponibles`,
+          datos: {
+            recetaIndex,
+            idClaseServicio,
+            nombreServicio,
+            numMenu,
+            clasesDisponibles: Array.from(clasesServiciosMap.keys())
+          }
+        });
+        console.warn(`⚠️ Clase de servicio ${idClaseServicio} (${nombreServicio}) no encontrada en clases disponibles`);
+        return; // Saltar esta receta
+      }
+
+      validaciones.clasesValidadas++;
+
+      // Parsear el detalle (componentes) si es string, si no ya es un array
+      let componentes: any[] = [];
+      if (typeof receta.detalle === 'string') {
+        try {
+          componentes = JSON.parse(receta.detalle);
+        } catch (e) {
+          console.error('❌ Error parseando detalle:', e);
+          validaciones.errores.push({
+            tipo: 'error_parseo_detalle',
+            mensaje: `Error parseando detalle de receta: ${e}`,
+            datos: { recetaIndex, numMenu, idClaseServicio }
+          });
+          componentes = [];
+        }
+      } else if (Array.isArray(receta.detalle)) {
+        componentes = receta.detalle;
+      }
+
+      // Recorrer cada componente - SOLO procesar los que tienen ingredientes
+      componentes.forEach((componente, compIndex) => {
+        const idComponente = componente.id_componente;
+        const nombreComponente = componente.componente || '';
+
+        // Parsear el detalle del componente (ingredientes) PRIMERO para saber si tiene ingredientes
+        let ingredientes: any[] = [];
+        if (typeof componente.detalle === 'string') {
+          try {
+            ingredientes = JSON.parse(componente.detalle);
+          } catch (e) {
+            console.error('❌ Error parseando detalle del componente:', e);
+            validaciones.errores.push({
+              tipo: 'error_parseo_ingredientes',
+              mensaje: `Error parseando ingredientes del componente: ${e}`,
+              datos: { recetaIndex, compIndex, idComponente, idClaseServicio }
+            });
+            ingredientes = [];
+          }
+        } else if (Array.isArray(componente.detalle)) {
+          ingredientes = componente.detalle;
+        }
+
+        // SOLO procesar componentes que tienen ingredientes
+        if (ingredientes.length === 0) {
+          // No es un error, simplemente ignorar componentes sin ingredientes
+          return;
+        }
+
+        // Buscar el componente en TODAS las clases de servicio (no solo en la del producto)
+        // porque un componente puede estar en múltiples clases de servicio
+        let componenteValido: { id: number; nombre: string; id_clase_servicio: number } | undefined;
+        let claseServicioComponente = idClaseServicio; // Por defecto, usar la clase del producto
+
+        // Primero intentar encontrar el componente en la clase de servicio del producto
+        const claveComponente = `${idClaseServicio}-${idComponente}`;
+        componenteValido = componentesMenusMap.get(claveComponente);
+
+        // Si no se encuentra en la clase del producto, buscar en todas las clases
+        if (!componenteValido) {
+          for (const [claseId, componentesList] of Array.from(clasesServiciosMap.entries())) {
+            const claveAlternativa = `${claseId}-${idComponente}`;
+            const compAlternativo = componentesMenusMap.get(claveAlternativa);
+            if (compAlternativo) {
+              componenteValido = compAlternativo;
+              claseServicioComponente = claseId;
+              console.log(`ℹ️ Componente ${idComponente} (${nombreComponente}) encontrado en clase ${claseId} en lugar de ${idClaseServicio}`);
+              break;
+            }
+          }
+        }
+
+        // Si aún no se encuentra, es un error
+        if (!componenteValido) {
+          validaciones.errores.push({
+            tipo: 'componente_no_encontrado',
+            mensaje: `Componente con ID ${idComponente} (${nombreComponente}) no existe en ninguna clase de servicio`,
+            datos: {
+              recetaIndex,
+              compIndex,
+              idClaseServicio,
+              idComponente,
+              nombreComponente,
+              numMenu,
+              componentesDisponibles: Array.from(componentesMenusMap.keys())
+            }
+          });
+          console.warn(`⚠️ Componente ${idComponente} (${nombreComponente}) no encontrado en ninguna clase de servicio`);
+          validaciones.ingredientesOmitidos++;
+          return; // Saltar este componente
+        }
+
+        validaciones.componentesValidadas++;
+
+        // Usar la clase de servicio donde se encontró el componente
+        const idClaseServicioFinal = claseServicioComponente;
+        
+        // Procesar TODOS los ingredientes del componente con el número de menú
+        const ingredientesProcesados = ingredientes.map(ing => ({
+          menu: numMenu, // Número del menú (1-indexed)
+          nombre: ing.nombre || 'Sin nombre',
+          cantidad: ing.cantidad || 0,
+          medida: ing.medida || '',
+          id_producto: ing.id_producto,
+          id_detalle: ing.id_detalle,
+          costo: ing.costo || 0,
+          total: ing.total || 0
+        }));
+        
+        // Debug: Log de ingredientes procesados
+        if (ingredientesProcesados.length > 0) {
+          console.log(`🍽️ Procesando ingredientes para componente ${idComponente} (${nombreComponente}) en menú ${numMenu}:`, {
+            numMenu: numMenu,
+            ingredientesCount: ingredientesProcesados.length,
+            ingredientes: ingredientesProcesados.map(ing => ({
+              menu: ing.menu,
+              tipoMenu: typeof ing.menu,
+              nombre: ing.nombre,
+              cantidad: ing.cantidad,
+              medida: ing.medida
+            }))
+          });
+        }
+
+        // Buscar si ya existe una fila para esta clase de servicio y componente
+        const existingIndex = detallemenus.findIndex(
+          (dm) => dm.id_clase_servicio === idClaseServicioFinal && dm.id_componente === idComponente
+        );
+
+        if (existingIndex !== -1) {
+          // Si existe, agregar los ingredientes al array de ingredientes
+          // La estructura ahora es: { ingredientes: [{ menu, nombre, ... }, ...] }
+          if (!detallemenus[existingIndex].ingredientes) {
+            detallemenus[existingIndex].ingredientes = [];
+          }
+          detallemenus[existingIndex].ingredientes.push(...ingredientesProcesados);
+          validaciones.ingredientesProcesados += ingredientesProcesados.length;
+        } else {
+          // Si no existe, crear una nueva fila con la nueva estructura
+          const claseServicioParaComponente = clasesServiciosMap.get(idClaseServicioFinal);
+          detallemenus.push({
+            id_clase_servicio: idClaseServicioFinal,
+            nombre: claseServicioParaComponente?.nombre || nombreServicio,
+            id_componente: idComponente,
+            componente: componenteValido.nombre,
+            ingredientes: ingredientesProcesados
+          });
+          validaciones.ingredientesProcesados += ingredientesProcesados.length;
+        }
+      });
+    });
+
+    console.log('✅ Transformación completada:', {
+      detallemenusCount: detallemenus.length,
+      validaciones,
+      detallemenus: detallemenus.map(dm => ({
+        id_clase: dm.id_clase_servicio,
+        nombre_clase: dm.nombre,
+        id_componente: dm.id_componente,
+        componente: dm.componente,
+        ingredientesCount: dm.ingredientes?.length || 0,
+        ingredientes: dm.ingredientes?.map(ing => ({ 
+          menu: ing.menu, 
+          nombre: ing.nombre,
+          tipoMenu: typeof ing.menu,
+          cantidad: ing.cantidad,
+          medida: ing.medida
+        })) || []
+      }))
+    });
+    
+    // Log detallado de cada detallemenu
+    detallemenus.forEach((dm, idx) => {
+      console.log(`📋 DetalleMenu ${idx + 1}:`, {
+        id_clase: dm.id_clase_servicio,
+        nombre_clase: dm.nombre,
+        id_componente: dm.id_componente,
+        componente: dm.componente,
+        ingredientesCount: dm.ingredientes?.length || 0,
+        ingredientes: dm.ingredientes?.map(ing => ({
+          menu: ing.menu,
+          tipoMenu: typeof ing.menu,
+          nombre: ing.nombre,
+          cantidad: ing.cantidad,
+          medida: ing.medida
+        })) || []
+      });
+    });
+
+    return { detallemenus, validaciones };
   }
 }

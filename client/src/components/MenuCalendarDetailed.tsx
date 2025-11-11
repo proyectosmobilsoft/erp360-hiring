@@ -12,6 +12,7 @@ import {
   Coffee
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
+import { MinutasService } from '../services/minutasService';
 
 interface IngredienteDetallado {
   id_producto: number;
@@ -50,12 +51,32 @@ interface ComponenteMenu {
   id_clase_servicio: number;
 }
 
+interface DetalleMenu {
+  id_clase_servicio: number;
+  nombre: string;
+  id_componente: number;
+  componente: string;
+  ingredientes: Array<{
+    menu: number;
+    nombre: string;
+    cantidad?: number;
+    medida?: string;
+    id_producto?: number;
+    id_detalle?: number;
+    costo?: number;
+    total?: number;
+  }>;
+}
+
 interface MenuCalendarDetailedProps {
   zonaId: string;
   zonaNombre: string;
   fechaInicial: string;
   fechaEjecucion: string;
   unidadesMenus: UnitMenu[];
+  detallemenus?: DetalleMenu[];
+  noCiclos?: number;
+  productosDetalleZona?: any[]; // Datos crudos del RPC sin transformar
 }
 
 const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
@@ -63,11 +84,16 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   zonaNombre,
   fechaInicial,
   fechaEjecucion,
-  unidadesMenus
+  unidadesMenus,
+  detallemenus = [],
+  noCiclos = 7,
+  productosDetalleZona = []
 }) => {
   const [clasesServicios, setClasesServicios] = useState<ClaseServicio[]>([]);
   const [componentesMenus, setComponentesMenus] = useState<ComponenteMenu[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [detallemenusTransformados, setDetallemenusTransformados] = useState<DetalleMenu[]>([]);
+  const [validaciones, setValidaciones] = useState<any>(null);
 
   // Cargar clases de servicios y componentes de menú
   useEffect(() => {
@@ -109,6 +135,62 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
 
     cargarDatos();
   }, []);
+
+  // Transformar datos del RPC cuando se carguen las clases y componentes
+  useEffect(() => {
+    console.log('🔄 useEffect de transformación ejecutándose:', {
+      productosDetalleZonaLength: productosDetalleZona.length,
+      clasesServiciosLength: clasesServicios.length,
+      componentesMenusLength: componentesMenus.length,
+      cargando: cargando,
+      noCiclos: noCiclos
+    });
+    
+    if (productosDetalleZona.length > 0 && clasesServicios.length > 0 && componentesMenus.length > 0 && !cargando) {
+      console.log('🔄 Transformando datos del RPC con validaciones...');
+      
+      const resultado = MinutasService.transformarDatosParaCalendario(
+        productosDetalleZona,
+        noCiclos,
+        clasesServicios,
+        componentesMenus
+      );
+
+      console.log('✅ Resultado de transformación recibido:', {
+        detallemenusCount: resultado.detallemenus.length,
+        detallemenus: resultado.detallemenus.map(dm => ({
+          id_clase: dm.id_clase_servicio,
+          nombre_clase: dm.nombre,
+          id_componente: dm.id_componente,
+          componente: dm.componente,
+          ingredientesCount: dm.ingredientes?.length || 0,
+          ingredientes: dm.ingredientes?.map(ing => ({ menu: ing.menu, nombre: ing.nombre })) || []
+        }))
+      });
+
+      setDetallemenusTransformados(resultado.detallemenus);
+      setValidaciones(resultado.validaciones);
+
+      console.log('✅ Estado actualizado con detallemenusTransformados:', resultado.detallemenus.length);
+
+      // Mostrar advertencias si hay errores
+      if (resultado.validaciones.errores.length > 0) {
+        console.warn('⚠️ Errores encontrados durante la validación:', resultado.validaciones.errores);
+      }
+    } else if (productosDetalleZona.length === 0) {
+      // Si no hay datos del RPC, limpiar los datos transformados
+      console.log('🧹 Limpiando datos transformados (no hay productosDetalleZona)');
+      setDetallemenusTransformados([]);
+      setValidaciones(null);
+    } else {
+      console.log('⏸️ No se pueden transformar los datos aún:', {
+        productosDetalleZonaLength: productosDetalleZona.length,
+        clasesServiciosLength: clasesServicios.length,
+        componentesMenusLength: componentesMenus.length,
+        cargando: cargando
+      });
+    }
+  }, [productosDetalleZona, clasesServicios, componentesMenus, noCiclos, cargando]);
 
   // Debug: Log de datos recibidos
   console.log('📅 MenuCalendarDetailed recibió:', {
@@ -218,13 +300,31 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
     });
   };
 
-  // Función para obtener las fechas de 7 días consecutivos desde la fecha inicial
-  const getWeekDates = (startDate: string) => {
-    const dates = [];
-    const start = parseDateWithoutTimezone(startDate);
+  // Calcular el offset de días entre fecha inicial y fecha de ejecución
+  const getEjecucionOffset = () => {
+    const inicial = parseDateWithoutTimezone(fechaInicial);
+    const ejecucion = parseDateWithoutTimezone(fechaEjecucion);
+    const diffTime = ejecucion.getTime() - inicial.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays); // Asegurar que no sea negativo
+  };
 
-    // Generar exactamente 7 días consecutivos desde la fecha inicial
-    for (let i = 0; i < 7; i++) {
+  // Función para obtener las fechas desde la fecha de ejecución (no antes)
+  // Genera noCiclos fechas desde la fecha de ejecución
+  const getWeekDates = (startDate: string) => {
+    const ejecucionOffset = getEjecucionOffset();
+    const inicial = parseDateWithoutTimezone(startDate);
+    const ejecucion = parseDateWithoutTimezone(fechaEjecucion);
+    const dates = [];
+
+    // Generar noCiclos días consecutivos desde la fecha de ejecución (no desde la inicial)
+    // Si la fecha de ejecución es mayor que la inicial, empezar desde la ejecución
+    const start = ejecucionOffset > 0 ? ejecucion : inicial;
+    
+    // Usar noCiclos para generar el número correcto de columnas
+    const numCiclos = noCiclos || 7;
+    
+    for (let i = 0; i < numCiclos; i++) {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
       dates.push(date);
@@ -239,17 +339,8 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
 
     return [{
       weekNumber: 1,
-      dates: weekDates
+        dates: weekDates
     }];
-  };
-
-  // Calcular el offset de días entre fecha inicial y fecha de ejecución
-  const getEjecucionOffset = () => {
-    const inicial = parseDateWithoutTimezone(fechaInicial);
-    const ejecucion = parseDateWithoutTimezone(fechaEjecucion);
-    const diffTime = ejecucion.getTime() - inicial.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return Math.max(0, diffDays); // Asegurar que no sea negativo
   };
 
   // Función para obtener el nombre del día en español
@@ -276,10 +367,59 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
   const weeksGrouped = getWeeksGrouped(fechaInicial);
   const ejecucionOffset = getEjecucionOffset();
 
-  // Consolidar todos los menús de todas las unidades en un solo array
+  // Si tenemos detallemenus transformados (de productosDetalleZona), usarlos
+  // Si no, usar detallemenus pasados como prop (fallback) o lógica antigua con unidadesMenus
+  const usarDatosTransformados = detallemenusTransformados.length > 0 || (detallemenus && detallemenus.length > 0);
+  const detallemenusFinales = detallemenusTransformados.length > 0 ? detallemenusTransformados : detallemenus;
+  
+  // Debug: Log información del calendario (después de calcular detallemenusFinales)
+  useEffect(() => {
+    console.log('🔍 Estado del calendario:', {
+      usarDatosTransformados,
+      detallemenusTransformadosLength: detallemenusTransformados.length,
+      detallemenusLength: detallemenus?.length || 0,
+      detallemenusFinalesLength: detallemenusFinales.length,
+      detallemenusFinales: detallemenusFinales.map(dm => ({
+        id_clase: dm.id_clase_servicio,
+        nombre_clase: dm.nombre,
+        id_componente: dm.id_componente,
+        componente: dm.componente,
+        ingredientesCount: dm.ingredientes?.length || 0,
+        ingredientes: dm.ingredientes?.map(ing => ({ menu: ing.menu, nombre: ing.nombre })) || []
+      }))
+    });
+
+    if (usarDatosTransformados && detallemenusFinales.length > 0) {
+      console.log('📅 Información del calendario:', {
+        fechaInicial,
+        fechaEjecucion,
+        ejecucionOffset,
+        weekDatesCount: weekDates.length,
+        weekDates: weekDates.map((d, i) => ({ 
+          dia: i, 
+          fecha: d.toISOString().split('T')[0],
+          menuIndex: i,
+          numMenu: i + 1,
+          esAntesDeEjecucion: false
+        })),
+        detallemenusFinalesCount: detallemenusFinales.length,
+        usarDatosTransformados,
+        detallemenusFinales: detallemenusFinales.map(dm => ({
+          id_clase: dm.id_clase_servicio,
+          nombre_clase: dm.nombre,
+          id_componente: dm.id_componente,
+          componente: dm.componente,
+          ingredientesCount: dm.ingredientes?.length || 0,
+          ingredientes: dm.ingredientes?.map(ing => ({ menu: ing.menu, nombre: ing.nombre, tipoMenu: typeof ing.menu })) || []
+        }))
+      });
+    }
+  }, [detallemenusFinales, usarDatosTransformados, fechaInicial, fechaEjecucion, ejecucionOffset, weekDates, detallemenusTransformados, detallemenus]);
+
+  // Consolidar todos los menús de todas las unidades en un solo array (solo si no hay datos transformados)
   // Agrupamos por índice de menú (día) para tener todos los menús del mismo día juntos
   // Los menús se asignan desde la fecha de ejecución, no desde la fecha inicial
-  const consolidatedMenus = weekDates.map((date, dayIndex) => {
+  const consolidatedMenus = usarDatosTransformados ? [] : weekDates.map((date, dayIndex) => {
     const menusDelDia: MenuItem[] = [];
     
     // Solo asignar menús si el día es igual o posterior a la fecha de ejecución
@@ -365,12 +505,12 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
         }
       `}</style>
       
-      <Card className="w-full" style={{ zoom: '0.80' }} >
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-teal-600" />
-            Calendario de Menús Detallado - {zonaNombre}
-          </CardTitle>
+    <Card className="w-full" style={{ zoom: '0.80' }} >
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CalendarIcon className="w-5 h-5 text-teal-600" />
+          Calendario de Menús Detallado - {zonaNombre}
+        </CardTitle>
         <div className="text-sm text-gray-600 flex gap-6">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
@@ -390,8 +530,8 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
               <p>Cargando datos del calendario...</p>
             </div>
           </div>
-        ) : unidadesMenus.length === 0 ? (
-          // Mostrar calendario vacío con estructura cuando no hay unidades
+        ) : unidadesMenus.length === 0 && !usarDatosTransformados ? (
+          // Mostrar calendario vacío con estructura cuando no hay unidades Y no hay datos transformados
           <div>
             <div className="flex">
               {/* Espacio para columnas fijas */}
@@ -400,7 +540,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
               {/* Barra de scroll horizontal arriba - solo para columnas scrolleables */}
               <div 
                 className="flex-1 overflow-x-auto border border-gray-300 rounded mb-1 top-scroll" 
-                style={{ height: '20px' }}
+                style={{ height: '15px', minHeight: '1px' }}
                 onScroll={(e) => {
                   const tableContainer = e.currentTarget.parentElement?.nextElementSibling as HTMLElement;
                   if (tableContainer && !tableContainer.dataset.scrolling) {
@@ -410,10 +550,10 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                   }
                 }}
               >
-                <div style={{ width: 'calc(7 * 256px)', height: '1px' }}></div>
-              </div>
+                <div style={{ width: `calc(${weekDates.length} * 256px)`, height: '1px' }}></div>
             </div>
-            
+                </div>
+
             {/* Contenedor de la tabla - scrollbar oculto visualmente pero funcional */}
             <div 
               className="overflow-x-auto overflow-y-hidden table-scroll-container"
@@ -440,100 +580,96 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                 }
               }}
             >
-              <table className="w-full border-collapse border border-gray-300">
-              {/* Header de semanas agrupadas */}
-              <thead>
-                <tr className="bg-gray-100">
+                    <table className="w-full border-collapse border border-gray-300">
+                      {/* Header de semanas agrupadas */}
+                      <thead>
+                        <tr className="bg-gray-100">
                   <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-gray-800 sticky left-0 z-10 bg-gray-100 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
                     SEMANA ACTUAL
-                  </th>
+                          </th>
                   <th className="border border-gray-300 p-2 text-center text-sm font-semibold bg-teal-200 text-teal-900" colSpan={7}>
                     SEMANA {weeksGrouped[0].weekNumber}
-                  </th>
-                </tr>
-              </thead>
+                              </th>
+                        </tr>
+                      </thead>
 
-              {/* Header de días individuales */}
-              <thead>
-                <tr className="bg-gray-50">
+                      {/* Header de días individuales */}
+                      <thead>
+                        <tr className="bg-gray-50">
                   <th className="border border-gray-300 p-3 text-left text-base font-semibold text-gray-700 sticky left-0 z-10 bg-gray-50 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
-                    DÍAS
-                  </th>
-                  {weekDates.map((date, i) => {
+                            DÍAS
+                          </th>
+                          {weekDates.map((date, i) => {
                     const isTodayDate = isToday(date);
-                    return (
+                            return (
                       <th key={i} className={`border border-gray-300 p-3 text-center text-sm font-semibold whitespace-nowrap ${
                         isTodayDate 
                           ? 'bg-gray-200 text-gray-900 font-bold' 
                           : 'bg-teal-50 text-teal-800'
                       }`}>
-                        {`${getDayName(date)} ${date.getDate()}/${getMonthName(date)}`}
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
+                                {`${getDayName(date)} ${date.getDate()}/${getMonthName(date)}`}
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
 
-              {/* Header de menús individuales */}
-              <thead>
-                <tr className="bg-blue-50">
+                      {/* Header de menús individuales */}
+                      <thead>
+                        <tr className="bg-blue-50">
                   <th className="border border-gray-300 p-2 text-center text-sm font-semibold text-blue-700 sticky left-0 z-10 bg-blue-50 sticky-column-shadow" colSpan={2} style={{ minWidth: '280px' }}>
-                    COMPONENTE/MENU
-                  </th>
+                            COMPONENTE/MENU
+                          </th>
                   {weekDates.map((date, i) => {
                     const isTodayDate = isToday(date);
-                    const esAntesDeLaEjecucion = i < ejecucionOffset;
                     return (
                       <th key={i} className={`border border-gray-300 p-2 text-center text-sm font-semibold w-64 min-w-64 ${
                         isTodayDate 
                           ? 'bg-gray-200 text-gray-900 font-bold' 
-                          : esAntesDeLaEjecucion 
-                            ? 'text-gray-400 italic'
-                            : 'text-blue-700'
+                          : 'text-blue-700'
                       }`}>
-                        {esAntesDeLaEjecucion ? '-' : `Menu ${i - ejecucionOffset + 1}`}
-                      </th>
+                        {`Menu ${i + 1}`}
+                            </th>
                     );
                   })}
-                </tr>
-              </thead>
+                        </tr>
+                      </thead>
 
-              <tbody>
+                      <tbody>
                 {/* Mostrar clases de servicio vacías */}
-                {clasesServicios.length > 0 ? (
-                  clasesServicios.map((claseServicio) => {
-                    const componentesRelacionados = componentesMenus.filter(
-                      comp => comp.id_clase_servicio === claseServicio.id
-                    );
+                        {clasesServicios.length > 0 ? (
+                          clasesServicios.map((claseServicio) => {
+                            const componentesRelacionados = componentesMenus.filter(
+                              comp => comp.id_clase_servicio === claseServicio.id
+                            );
 
-                    if (componentesRelacionados.length === 0) {
-                      return (
-                        <tr key={`clase-${claseServicio.id}`}>
+                            if (componentesRelacionados.length === 0) {
+                              return (
+                                <tr key={`clase-${claseServicio.id}`}>
                           <td className={`border border-gray-300 p-3 font-semibold text-xs sticky left-0 z-10 ${getMenuTypeColor(claseServicio.nombre.toUpperCase())}`} rowSpan={1} style={{ minWidth: '140px' }}>
-                            <div className="flex items-center gap-2">
-                              {getMenuIcon(claseServicio.nombre.toUpperCase())}
-                              {claseServicio.nombre.toUpperCase()}
-                            </div>
-                          </td>
+                                    <div className="flex items-center gap-2">
+                                      {getMenuIcon(claseServicio.nombre.toUpperCase())}
+                                      {claseServicio.nombre.toUpperCase()}
+                                    </div>
+                                  </td>
                           <td className={`border border-gray-300 p-2 text-center text-xs text-gray-400 sticky z-10 sticky-column-shadow ${getMenuTypeColor(claseServicio.nombre.toUpperCase()).split(' ')[0]}`} style={{ left: '140px', minWidth: '140px' }}>
-                            Sin componentes
-                          </td>
+                                    Sin componentes
+                                  </td>
                           {weekDates.map((date, i) => {
                             const isTodayDate = isToday(date);
-                            const esAntesDeLaEjecucion = i < ejecucionOffset;
                             return (
                               <td key={i} className={`border border-gray-300 p-2 text-center text-xs ${
                                 isTodayDate ? 'bg-gray-100' : ''
                               }`}>
-                                {esAntesDeLaEjecucion ? '' : '-'}
-                              </td>
+                                      -
+                                    </td>
                             );
                           })}
-                        </tr>
-                      );
-                    }
+                                </tr>
+                              );
+                            }
 
-                    return componentesRelacionados.map((componente, compIndex) => {
+                            return componentesRelacionados.map((componente, compIndex) => {
                       return (
                         <tr key={`clase-${claseServicio.id}-comp-${componente.id}`} className={compIndex === 0 ? `border-t-[3px] ${getMenuTypeBorderColor(claseServicio.nombre.toUpperCase())}` : ''}>
                           {compIndex === 0 && (
@@ -555,13 +691,12 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                           
                           {weekDates.map((date, i) => {
                             const isTodayDate = isToday(date);
-                            const esAntesDeLaEjecucion = i < ejecucionOffset;
                             const bgColor = getMenuTypeColor(claseServicio.nombre.toUpperCase());
                             return (
                               <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${
                                 isTodayDate ? 'bg-gray-100' : bgColor
                               }`}>
-                                {esAntesDeLaEjecucion ? '' : '-'}
+                                -
                               </td>
                             );
                           })}
@@ -585,8 +720,8 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
           </div>
         ) : (
           <div>
-            {/* Calendario consolidado de todas las unidades */}
-            {consolidatedMenus.some(menus => menus.length > 0) ? (
+            {/* Calendario consolidado de todas las unidades O con datos transformados */}
+            {(consolidatedMenus.some(menus => menus.length > 0) || usarDatosTransformados) ? (
               <div>
                     <div className="flex">
                       {/* Espacio para columnas fijas */}
@@ -595,7 +730,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                       {/* Barra de scroll horizontal arriba - solo para columnas scrolleables */}
                       <div 
                         className="flex-1 overflow-x-auto border border-gray-300 rounded mb-1 top-scroll" 
-                        style={{ height: '20px' }}
+                        style={{ height: '1px', minHeight: '1px' }}
                         onScroll={(e) => {
                           const tableContainer = e.currentTarget.parentElement?.nextElementSibling as HTMLElement;
                           if (tableContainer && !tableContainer.dataset.scrolling) {
@@ -605,7 +740,7 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                           }
                         }}
                       >
-                        <div style={{ width: 'calc(7 * 256px)', height: '1px' }}></div>
+                        <div style={{ width: `calc(${weekDates.length} * 256px)`, height: '1px' }}></div>
                       </div>
                     </div>
                     
@@ -677,16 +812,13 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                             </th>
                           {weekDates.map((date, i) => {
                             const isTodayDate = isToday(date);
-                            const esAntesDeLaEjecucion = i < ejecucionOffset;
                             return (
                               <th key={i} className={`border border-gray-300 p-2 text-center text-sm font-semibold w-64 min-w-64 ${
                                 isTodayDate 
                                   ? 'bg-gray-200 text-gray-900 font-bold' 
-                                  : esAntesDeLaEjecucion 
-                                    ? 'text-gray-400 italic'
-                                    : 'text-blue-700'
+                                  : 'text-blue-700'
                               }`}>
-                              {esAntesDeLaEjecucion ? '-' : `Menu ${i - ejecucionOffset + 1}`}
+                              {`Menu ${i + 1}`}
                             </th>
                             );
                           })}
@@ -695,12 +827,108 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
 
                       <tbody>
                         {/* Mostrar menús organizados por clase de servicio y componentes */}
+                        {(() => {
+                          // Debug: Log del estado antes de renderizar
+                          console.log('🎨 Renderizando tabla:', {
+                            clasesServiciosLength: clasesServicios.length,
+                            usarDatosTransformados,
+                            detallemenusFinalesLength: detallemenusFinales.length,
+                            detallemenusTransformadosLength: detallemenusTransformados.length,
+                            detallemenusLength: detallemenus?.length || 0
+                          });
+                          return null;
+                        })()}
                         {clasesServicios.length > 0 ? (
                           clasesServicios.map((claseServicio) => {
-                            // Obtener componentes relacionados con esta clase de servicio
-                            const componentesRelacionados = componentesMenus.filter(
-                              comp => comp.id_clase_servicio === claseServicio.id
-                            );
+                            // Si tenemos datos transformados, obtener componentes que tienen datos en detallemenus para esta clase
+                            // Si no, obtener componentes relacionados con esta clase de servicio de la lista general
+                            let componentesRelacionados: Array<{componente: ComponenteMenu; detalleMenu: DetalleMenu | undefined}> = [];
+                            
+                            if (usarDatosTransformados) {
+                              console.log(`🎯 Renderizando clase ${claseServicio.nombre} (ID: ${claseServicio.id}) con datos transformados`);
+                              // Debug: Log antes de filtrar
+                              console.log(`🔍 Buscando detallemenus para clase ${claseServicio.nombre} (ID: ${claseServicio.id}):`, {
+                                detallemenusFinalesTotal: detallemenusFinales.length,
+                                detallemenusFinales: detallemenusFinales.map(dm => ({
+                                  id_clase: dm.id_clase_servicio,
+                                  nombre_clase: dm.nombre,
+                                  id_componente: dm.id_componente,
+                                  componente: dm.componente
+                                }))
+                              });
+                              
+                              // Obtener TODOS los detallemenus que pertenecen a esta clase de servicio
+                              const detallemenusDeEstaClase = detallemenusFinales.filter(
+                                dm => dm.id_clase_servicio === claseServicio.id
+                              );
+                              
+                              console.log(`✅ Detallemenus encontrados para clase ${claseServicio.nombre} (ID: ${claseServicio.id}): ${detallemenusDeEstaClase.length}`, {
+                                detallemenus: detallemenusDeEstaClase.map(dm => ({
+                                  id_clase: dm.id_clase_servicio,
+                                  nombre_clase: dm.nombre,
+                                  id_componente: dm.id_componente,
+                                  componente: dm.componente,
+                                  ingredientesCount: dm.ingredientes?.length || 0,
+                                  ingredientes: dm.ingredientes?.map(ing => ({ menu: ing.menu, nombre: ing.nombre })) || []
+                                }))
+                              });
+                              
+                              // Crear pares de componente y detalleMenu directamente desde los detallemenus
+                              componentesRelacionados = detallemenusDeEstaClase.map(dm => {
+                                // Buscar el componente en la lista general para obtener toda su información
+                                const comp = componentesMenus.find(c => c.id === dm.id_componente);
+                                const componenteInfo = comp || {
+                                  id: dm.id_componente,
+                                  nombre: dm.componente,
+                                  id_clase_servicio: dm.id_clase_servicio
+                                } as ComponenteMenu;
+                                
+                                return {
+                                  componente: componenteInfo,
+                                  detalleMenu: dm
+                                };
+                              });
+                              
+                              // Si no hay componentes con datos para esta clase, usar los componentes de la lista general
+                              if (componentesRelacionados.length === 0) {
+                                componentesRelacionados = componentesMenus
+                                  .filter(comp => comp.id_clase_servicio === claseServicio.id)
+                                  .map(comp => ({
+                                    componente: comp,
+                                    detalleMenu: undefined
+                                  }));
+                              }
+                              
+                              // Ordenar por id del componente para mantener consistencia
+                              componentesRelacionados.sort((a, b) => a.componente.id - b.componente.id);
+                              
+                              // Debug: Log componentes relacionados para todas las clases
+                              console.log(`🔍 Componentes relacionados para clase ${claseServicio.nombre} (${claseServicio.id}):`, {
+                                componentes: componentesRelacionados.map(item => ({ 
+                                  id: item.componente.id, 
+                                  nombre: item.componente.nombre, 
+                                  id_clase: item.componente.id_clase_servicio,
+                                  tieneDetalleMenu: !!item.detalleMenu,
+                                  tieneIngredientes: item.detalleMenu ? (item.detalleMenu.ingredientes?.length || 0) > 0 : false,
+                                  ingredientes: item.detalleMenu ? item.detalleMenu.ingredientes.map(ing => ({ menu: ing.menu, nombre: ing.nombre })) : []
+                                })),
+                                detallemenusCount: detallemenusDeEstaClase.length,
+                                detallemenusDeEstaClase: detallemenusDeEstaClase.map(dm => ({
+                                  id_clase: dm.id_clase_servicio,
+                                  id_componente: dm.id_componente,
+                                  componente: dm.componente,
+                                  ingredientes: dm.ingredientes.map(ing => ({ menu: ing.menu, nombre: ing.nombre }))
+                                  }))
+                                });
+                            } else {
+                              // Obtener componentes relacionados con esta clase de servicio
+                              componentesRelacionados = componentesMenus
+                                .filter(comp => comp.id_clase_servicio === claseServicio.id)
+                                .map(comp => ({
+                                  componente: comp,
+                                  detalleMenu: undefined
+                                }));
+                            }
 
                             // Si no hay componentes, mostrar solo la clase de servicio
                             if (componentesRelacionados.length === 0) {
@@ -731,33 +959,28 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                             }
 
                             // Mostrar cada componente en una fila
-                            return componentesRelacionados.map((componente, compIndex) => {
-                              // Obtener las recetas que corresponden a esta clase de servicio de cada día
-                              // consolidatedMenus es un array de arrays: [[menusDelDia0], [menusDelDia1], ...]
-                              const recetasDeClase = consolidatedMenus.map(menusDelDia => 
+                            return componentesRelacionados.map((item, compIndex) => {
+                              const componente = item.componente;
+                              const detalleMenu = item.detalleMenu;
+                              
+                              // Debug: Log detalleMenu para todos los componentes que tienen datos
+                              if (detalleMenu && detalleMenu.ingredientes && detalleMenu.ingredientes.length > 0) {
+                                console.log(`✅ detalleMenu encontrado para componente ${componente.id} (${componente.nombre}) en clase ${claseServicio.nombre}:`, {
+                                  id_clase_servicio: detalleMenu.id_clase_servicio,
+                                  nombre_clase: detalleMenu.nombre,
+                                  id_componente: detalleMenu.id_componente,
+                                  componente: detalleMenu.componente,
+                                  ingredientesCount: detalleMenu.ingredientes?.length || 0,
+                                  ingredientes: detalleMenu.ingredientes.map(ing => ({ menu: ing.menu, nombre: ing.nombre, tipoMenu: typeof ing.menu }))
+                                });
+                              } else if (usarDatosTransformados && !detalleMenu && compIndex === 0) {
+                                console.warn(`⚠️ No se encontró detalleMenu para componente ${componente.id} (${componente.nombre}) en clase ${claseServicio.nombre} (${claseServicio.id})`);
+                              }
+
+                              // Si no hay datos transformados, usar la lógica antigua
+                              const recetasDeClase = usarDatosTransformados ? [] : consolidatedMenus.map(menusDelDia => 
                                 menusDelDia.find(menu => menu.tipo.toUpperCase() === claseServicio.nombre.toUpperCase())
                               ).filter((menu): menu is MenuItem => menu !== undefined);
-
-                              // Log para debug
-                              if (compIndex === 0) {
-                                console.log(`🔎 Buscando recetas para ${claseServicio.nombre} (consolidado):`, {
-                                  claseServicio: claseServicio.nombre,
-                                  diasConMenus: consolidatedMenus.map((menusDelDia, i) => ({
-                                    dia: i + 1,
-                                    totalMenus: menusDelDia.length,
-                                    menus: menusDelDia.map(m => ({ 
-                                      nombre: m.nombre, 
-                                      tipo: m.tipo 
-                                    }))
-                                  })),
-                                  recetasEncontradas: recetasDeClase.length,
-                                  recetas: recetasDeClase.map(r => ({ 
-                                    nombre: r.nombre, 
-                                    tipo: r.tipo, 
-                                    ingredientes_count: r.ingredientes_detallados?.length || 0
-                                  }))
-                                });
-                              }
 
                               return (
                                 <tr key={`clase-${claseServicio.id}-comp-${componente.id}`} className={compIndex === 0 ? `border-t-[3px] ${getMenuTypeBorderColor(claseServicio.nombre.toUpperCase())}` : ''}>
@@ -785,41 +1008,132 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                                     // Obtener el color de fondo de la clase de servicio
                                     const bgColor = getMenuTypeColor(claseServicio.nombre.toUpperCase());
                                     const isTodayDate = isToday(date);
-                                    const esAntesDeLaEjecucion = i < ejecucionOffset;
 
-                                    // Si es antes de la fecha de ejecución, mostrar celda vacía
-                                    if (esAntesDeLaEjecucion) {
+                                    // Calcular el índice del menú (todas las fechas son desde la ejecución)
+                                    // El primer día (i === 0) tiene menuIndex = 0 (menú 1)
+                                    // El número del menú es i + 1 (1-indexed)
+                                    const numMenu = i + 1;
+
+                                    // Si tenemos datos transformados, usar detallemenus
+                                    if (usarDatosTransformados && detalleMenu) {
+                                      // Debug: Log detallado para el primer día y componente con ingredientes
+                                      if (i === 0 && detalleMenu.ingredientes && detalleMenu.ingredientes.length > 0) {
+                                        console.log(`🔍 [DIA ${i}] Buscando ingredientes para:`, {
+                                          componente: detalleMenu.componente,
+                                          id_componente: detalleMenu.id_componente,
+                                          id_clase: detalleMenu.id_clase_servicio,
+                                          numMenu: numMenu,
+                                          totalIngredientes: detalleMenu.ingredientes.length,
+                                          ingredientes: detalleMenu.ingredientes.map(ing => ({ menu: ing.menu, nombre: ing.nombre }))
+                                        });
+                                      }
+
+                                      // Buscar ingredientes que correspondan a este menú
+                                      // La estructura ahora es: { ingredientes: [{ menu, nombre, ... }, ...] }
+                                      // Asegurar que ambos valores sean del mismo tipo (número) para la comparación
+                                      const ingredientesDelMenu = detalleMenu.ingredientes?.filter(ing => {
+                                        const ingMenu = typeof ing.menu === 'string' ? parseInt(ing.menu, 10) : Number(ing.menu);
+                                        const numMenuNum = typeof numMenu === 'string' ? parseInt(numMenu, 10) : Number(numMenu);
+                                        const matches = ingMenu === numMenuNum;
+                                        
+                                        // Debug detallado para el primer día
+                                        if (i === 0 && detalleMenu.ingredientes && detalleMenu.ingredientes.length > 0) {
+                                          console.log(`🔍 Comparando ingrediente:`, {
+                                            ingMenu: ingMenu,
+                                            ingMenuType: typeof ingMenu,
+                                            numMenuNum: numMenuNum,
+                                            numMenuNumType: typeof numMenuNum,
+                                            matches: matches,
+                                            ingNombre: ing.nombre
+                                          });
+                                        }
+                                        
+                                        return matches;
+                                      }) || [];
+
+                                      // Debug: Log cuando encontramos ingredientes
+                                      if (ingredientesDelMenu.length > 0) {
+                                        console.log(`✅ [DIA ${i}] Ingredientes encontrados para menú ${numMenu} en componente ${detalleMenu.componente}:`, ingredientesDelMenu.map(ing => ing.nombre));
+                                      }
+
+                                      if (ingredientesDelMenu.length > 0) {
+                                        return (
+                                          <td key={i} className={`border border-gray-300 p-2 text-xs w-64 min-w-64 ${
+                                            isTodayDate ? 'bg-gray-100' : bgColor
+                                          }`}>
+                                            <div className="text-center p-2 space-y-2">
+                                              {ingredientesDelMenu.map((ing, ingIndex) => (
+                                                <div key={ingIndex} className={ingIndex > 0 ? 'border-t border-gray-200 pt-2 mt-2' : ''}>
+                                                  <div className="font-semibold text-gray-900 text-sm">
+                                                    {ing.nombre || 'Sin nombre'}
+                                                  </div>
+                                                  {ing.cantidad && ing.medida && (
+                                                    <div className="text-xs text-gray-600 mt-1">
+                                                      {ing.cantidad} {ing.medida}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </td>
+                                        );
+                                      }
+                                      
+                                      // Debug: Log cuando no se encuentran ingredientes para este menú
+                                      if (i === ejecucionOffset && detalleMenu.ingredientes && detalleMenu.ingredientes.length > 0) {
+                                        console.warn(`⚠️ [DIA ${i}] No se encontraron ingredientes para menú ${numMenu} en componente ${detalleMenu.componente}. Ingredientes disponibles:`, 
+                                          detalleMenu.ingredientes.map(ing => ({ menu: ing.menu, nombre: ing.nombre }))
+                                        );
+                                      }
+                                      
+                                      // Si no hay ingrediente para este menú, mostrar guión
                                       return (
                                         <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${
                                           isTodayDate ? 'bg-gray-100' : bgColor
                                         }`}>
+                                          -
+                                        </td>
+                                      );
+                                    }
+                                    
+                                    // Si no se encuentra detalleMenu, mostrar celda vacía o guión
+                                    if (usarDatosTransformados && !detalleMenu) {
+                                      // Debug: Log cuando no se encuentra detalleMenu (solo para el primer día y componente)
+                                      if (i === 0 && compIndex === 0) {
+                                        console.warn(`⚠️ [DIA ${i}] No se encontró detalleMenu para componente ${componente.id} (${componente.nombre}) en clase ${claseServicio.id} (${claseServicio.nombre})`);
+                                        console.log('🔍 Buscando componente:', {
+                                          componenteId: componente.id,
+                                          componenteNombre: componente.nombre,
+                                          componenteIdClase: componente.id_clase_servicio,
+                                          claseServicioId: claseServicio.id,
+                                          claseServicioNombre: claseServicio.nombre
+                                        });
+                                        console.log('🔍 Detallemenus disponibles:', detallemenusFinales.map(dm => ({
+                                          id_clase: dm.id_clase_servicio,
+                                          nombre_clase: dm.nombre,
+                                          id_componente: dm.id_componente,
+                                          componente: dm.componente,
+                                          tieneIngredientes: (dm.ingredientes?.length || 0) > 0,
+                                          ingredientes: dm.ingredientes || []
+                                        })));
+                                      }
+                                      return (
+                                        <td key={i} className={`border border-gray-300 p-2 text-center text-xs w-64 min-w-64 ${
+                                          isTodayDate ? 'bg-gray-100' : bgColor
+                                        }`}>
+                                          -
                                         </td>
                                       );
                                     }
 
-                                    // Verificar si hay una receta asignada para este menú (índice i corresponde a Menu 1, Menu 2, etc.)
-                                    // Solo mostramos ingredientes si el índice i es menor que la cantidad de recetas
-                                    if (i < recetasDeClase.length) {
+                                    // Lógica antigua (si no hay datos transformados)
+                                    if (!usarDatosTransformados && i < recetasDeClase.length) {
                                       const receta = recetasDeClase[i];
                                       
                                       // Filtrar los ingredientes de esta receta específica que pertenecen a este componente
-                                      // NOTA: Filtramos por NOMBRE del componente en lugar de ID porque el mismo componente
-                                      // (ej: PROTEICO, FRUTA) puede tener diferentes IDs para diferentes clases de servicio
                                       const ingredientesDelComponente = receta.ingredientes_detallados?.filter(
                                         ing => ing.nombre_componente_menu === componente.nombre
                                       ) || [];
-
-                                      // Debug log para ver qué ingredientes se están procesando
-                                      if (i === ejecucionOffset && ingredientesDelComponente.length > 0) {
-                                        console.log(`🔍 Menu ${i - ejecucionOffset + 1} - Componente ${componente.nombre} para clase ${claseServicio.nombre}:`, {
-                                          receta: receta.nombre,
-                                          ingredientes: ingredientesDelComponente.map(ing => ({
-                                            nombre: ing.nombre,
-                                            componente: ing.nombre_componente_menu,
-                                            cantidad: ing.cantidad
-                                          }))
-                                        });
-                                      }
 
                                       // Si esta receta tiene ingredientes para este componente, mostrarlos
                                       if (ingredientesDelComponente.length > 0) {
@@ -867,8 +1181,8 @@ const MenuCalendarDetailed: React.FC<MenuCalendarDetailedProps> = ({
                         )}
                       </tbody>
                     </table>
-                    </div>
                   </div>
+              </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <UtensilsCrossed className="w-12 h-12 mx-auto mb-4 text-gray-300" />

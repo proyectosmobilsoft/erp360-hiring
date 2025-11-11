@@ -17,6 +17,7 @@ export interface ContratoView {
   'Racion:$:colspan:[Valores]': number;
   'Total:$:colspan:[Valores]': number;
   'Estado': 'ABIERTO' | 'EN PRODUCCION' | 'FINALIZADO' | 'INACTIVO';
+  'No. Ciclos'?: number;
   'detalle:hide': Array<{
     Codigo: string;
     Nombre: string;
@@ -48,6 +49,7 @@ export class ContratosService {
           fecha_arranque,
           no_ppl,
           no_servicios,
+          no_ciclos,
           valor_racion,
           valor_contrato,
           estado_proceso,
@@ -73,6 +75,7 @@ export class ContratosService {
         'Racion:$:colspan:[Valores]': contrato.valor_racion || 0,
         'Total:$:colspan:[Valores]': contrato.valor_contrato || 0,
         'Estado': contrato.estado_proceso || 'ABIERTO',
+        'No. Ciclos': contrato.no_ciclos || 0,
         'detalle:hide': [] // Se cargará por separado
       })) || [];
 
