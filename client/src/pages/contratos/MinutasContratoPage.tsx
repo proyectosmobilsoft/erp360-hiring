@@ -11,7 +11,6 @@ import {
   Users,
   Settings,
   Search,
-  Check,
   X,
   ArrowRight,
   Package,
@@ -723,30 +722,6 @@ const MinutasContratoPage: React.FC = () => {
     };
   }, [overlayVisible]);
 
-  const handleGuardarMinutas = () => {
-    if (!zonaSeleccionada) {
-      toast({
-        title: "Seleccione una zona",
-        description: "Debe seleccionar una zona para guardar la configuración",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!unidadSeleccionada) {
-      toast({
-        title: "Seleccione una unidad de servicio",
-        description: "Debe seleccionar una unidad de servicio para guardar la configuración",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Configuración guardada",
-      description: "La configuración del contrato se ha guardado correctamente",
-    });
-  };
 
   return (
     <div className="p-4 max-w-full mx-auto">
@@ -980,19 +955,6 @@ const MinutasContratoPage: React.FC = () => {
               />
             )}
           </div>
-
-          {/* Botón Guardar */}
-          <div className="flex justify-end mt-6">
-            <Button
-              onClick={handleGuardarMinutas}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
-              disabled={!zonaSeleccionada || !unidadSeleccionada}
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Guardar Configuración
-            </Button>
-          </div>
-
 
         </CardContent>
       </Card>
